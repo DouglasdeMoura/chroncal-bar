@@ -121,12 +121,25 @@ function durationLabel(seconds) {
   return remainder === 0 ? hours + "h" : hours + "h " + remainder + "m";
 }
 
+function relativeDayLabel(date, now) {
+  if (dateKey(date) === dateKey(now)) return "";
+  var day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var delta = Math.round((day.getTime() - today.getTime()) / 86400000);
+  if (delta === 1) return "Tomorrow";
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()];
+}
+
 function eventLeadLabel(event, now) {
   var start = parseDate(event.start_time);
   var end = parseDate(event.end_time);
   if (!start || !end) return "";
   var untilStart = (start.getTime() - now.getTime()) / 1000;
-  if (untilStart > 0) return untilStart <= 600 ? "in " + durationLabel(untilStart) : formatTime(event.start_time);
+  if (untilStart > 0) {
+    var dayLabel = relativeDayLabel(start, now);
+    if (dayLabel !== "") return dayLabel + " " + formatTime(event.start_time);
+    return untilStart <= 600 ? "in " + durationLabel(untilStart) : formatTime(event.start_time);
+  }
   if ((now.getTime() - start.getTime()) < 60000) return "Now";
   return durationLabel((end.getTime() - now.getTime()) / 1000) + " left";
 }
@@ -140,7 +153,51 @@ function tooltipLine(event) {
   return colorBlock(event) + "  " + when + " · " + escapeHtml(event.title || "Untitled");
 }
 
-function barPresentation(agenda, maximumTitleLength) {
+function arrayValues(value) {
+  if (!value || typeof value.length !== "number" || typeof value === "string") return [];
+  var values = [];
+  for (var i = 0; i < value.length; i++) values.push(value[i]);
+  return values;
+}
+
+function optionEnabled(options, key, fallback) {
+  if (!options || options[key] === undefined || options[key] === null) return fallback;
+  if (options[key] === false) return false;
+  return String(options[key]).toLowerCase() !== "off";
+}
+
+function filterEvents(events, options) {
+  var source = events || [];
+  var included = arrayValues(options && options.includedCalendarIds).map(function(value) { return String(value); });
+  var showAllDay = optionEnabled(options, "showAllDay", true);
+  var showWithoutParticipants = optionEnabled(options, "showEventsWithoutParticipants", true);
+  var showWithoutLocation = optionEnabled(options, "showEventsWithoutLocation", true);
+
+  return source.filter(function(event) {
+    if (included.length > 0 && included.indexOf(String(event.calendar_id)) === -1) return false;
+    if (!showAllDay && event.all_day === true) return false;
+    if (!showWithoutParticipants && (!event.attendees || event.attendees.length === 0)) return false;
+    if (!showWithoutLocation && !event.location && !event.conference_url) return false;
+    return true;
+  });
+}
+
+function filterAgenda(agenda, options) {
+  if (!agenda) return { status: "unavailable", events: [], next: null };
+  var filtered = {};
+  for (var key in agenda) filtered[key] = agenda[key];
+  filtered.events = filterEvents(agenda.events || [], options);
+  filtered.next = filtered.events.length > 0 ? filtered.events[0] : null;
+  return filtered;
+}
+
+function calendarOptions(calendars) {
+  return (calendars || []).map(function(calendar) {
+    return { value: String(calendar.id), label: String(calendar.name || "Calendar"), description: "" };
+  }).sort(function(a, b) { return a.label.localeCompare(b.label); });
+}
+
+function barPresentation(agenda, maximumTitleLength, displayOptions) {
   if (!agenda || agenda.status !== "ok") {
     return { text: "", className: "unavailable", tooltip: "chroncal unavailable" };
   }
@@ -152,9 +209,14 @@ function barPresentation(agenda, maximumTitleLength) {
   var now = parseDate(agenda.generated_at) || new Date();
   var anchor = events[0];
   var titleLimit = maximumTitleLength || 42;
+  var showTime = optionEnabled(displayOptions, "showTime", true);
+  var showTitle = optionEnabled(displayOptions, "showTitle", true);
   if (anchor.all_day === true) {
+    var allDayParts = [];
+    if (showTime) allDayParts.push("All day");
+    if (showTitle) allDayParts.push(escapeHtml(truncate(anchor.title, titleLimit)));
     return {
-      text: richText(" All day · " + escapeHtml(truncate(anchor.title, titleLimit)) + " "),
+      text: allDayParts.length > 0 ? richText(" " + allDayParts.join(" · ") + " ") : "",
       className: "all-day",
       tooltip: tooltip
     };
@@ -172,15 +234,21 @@ function barPresentation(agenda, maximumTitleLength) {
   });
 
   if (cluster.length <= 1) {
+    var parts = [];
+    if (showTime) parts.push(eventLeadLabel(anchor, now));
+    if (showTitle) parts.push(escapeHtml(truncate(anchor.title, titleLimit)));
     return {
-      text: richText(" " + eventLeadLabel(anchor, now) + " · " + escapeHtml(truncate(anchor.title, titleLimit)) + " "),
+      text: parts.length > 0 ? richText(" " + parts.join(" · ") + " ") : "",
       className: className,
       tooltip: tooltip
     };
   }
 
   var visible = cluster.slice(0, 3).map(function(event) {
-    return colorBlock(event) + " " + eventLeadLabel(event, now) + " · " + escapeHtml(truncate(event.title, 18));
+    var eventParts = [];
+    if (showTime) eventParts.push(eventLeadLabel(event, now));
+    if (showTitle) eventParts.push(escapeHtml(truncate(event.title, 18)));
+    return colorBlock(event) + (eventParts.length > 0 ? " " + eventParts.join(" · ") : "");
   }).join(" | ");
   var more = cluster.length > 3 ? " +" + (cluster.length - 3) : "";
   return {

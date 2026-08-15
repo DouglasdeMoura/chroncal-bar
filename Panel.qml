@@ -16,11 +16,13 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
-  readonly property var agendaData: hostWidget ? hostWidget.agendaData : ({ status: "loading", events: [] })
+  readonly property var agendaData: hostWidget ? hostWidget.filteredAgenda : ({ status: "loading", events: [] })
   readonly property var groups: Model.groupEvents(agendaData.events || [], agendaData.generated_at || new Date().toISOString())
+  readonly property var calendars: hostWidget ? (hostWidget.agendaData.calendars || []) : []
   property int selectedEventId: -1
   property var selectedEvent: null
   readonly property bool showingDetails: selectedEvent !== null
+  property bool showingSettings: false
   property string actionStatus: ""
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
@@ -34,6 +36,7 @@ Panel {
   function close() {
     root.selectedEvent = null
     root.selectedEventId = -1
+    root.showingSettings = false
     root.controller.hide()
   }
 
@@ -51,13 +54,31 @@ Panel {
   function showEvent(eventData) {
     selectedEventId = Number(eventData.id)
     selectedEvent = eventData
+    showingSettings = false
     actionStatus = ""
   }
 
   function backToAgenda() {
     selectedEvent = null
+    showingSettings = false
     actionStatus = ""
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function toggleSettings() {
+    selectedEvent = null
+    showingSettings = showingSettings ? false : true
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function persistSettings(values) {
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    for (var key in values) entry[key] = values[key]
+    root.settings = entry
+    if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
   function showFirstEvent() {
@@ -119,15 +140,16 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       onCloseRequested: {
-        if (root.showingDetails) root.backToAgenda()
+        if (root.showingDetails || root.showingSettings) root.backToAgenda()
         else root.close()
       }
       onActivateRequested: {
-        if (!root.showingDetails) root.showFirstEvent()
+        if (!root.showingDetails && !root.showingSettings) root.showFirstEvent()
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(text) {
         if (text === "r" || text === "R") root.refresh()
+        else if (text === ",") root.toggleSettings()
         else if (root.showingDetails && (text === "j" || text === "J")) root.joinEvent()
         else if (root.showingDetails && (text === "c" || text === "C")) root.copyEventDetails()
         else if (root.showingDetails && (text === "o" || text === "O")) root.openChroncal()
@@ -143,9 +165,9 @@ Panel {
           height: Style.space(28)
 
           Text {
-            width: parent.width - refreshLabel.width
+            width: parent.width - headerActions.width
             anchors.verticalCenter: parent.verticalCenter
-            text: root.showingDetails ? "EVENT DETAILS" : "UPCOMING"
+            text: root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : "UPCOMING")
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -153,13 +175,38 @@ Panel {
             font.letterSpacing: 1.2
           }
 
-          Text {
-            id: refreshLabel
+          Row {
+            id: headerActions
             anchors.verticalCenter: parent.verticalCenter
-            text: root.showingDetails ? "ESC  Back" : (root.hostWidget && root.hostWidget.loading ? "Refreshing…" : "R  Refresh")
-            color: Util.alpha(root.contentForeground, 0.58)
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.caption
+            spacing: Style.space(4)
+
+            Text {
+              visible: root.showingDetails
+              anchors.verticalCenter: parent.verticalCenter
+              text: "ESC  Back"
+              color: Util.alpha(root.contentForeground, 0.58)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            PanelActionButton {
+              visible: !root.showingDetails
+              iconText: root.showingSettings ? "←" : "󰒓"
+              tooltipText: root.showingSettings ? "Back to agenda" : "Calendar settings"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.toggleSettings()
+            }
+
+            PanelActionButton {
+              visible: !root.showingDetails && !root.showingSettings
+              iconText: "󰑐"
+              tooltipText: root.hostWidget && root.hostWidget.loading ? "Refreshing" : "Refresh agenda"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              enabled: !(root.hostWidget && root.hostWidget.loading)
+              onClicked: root.refresh()
+            }
           }
         }
 
@@ -174,7 +221,7 @@ Panel {
           height: parent.height - Style.space(50)
 
           Text {
-            visible: !root.showingDetails && root.agendaData.status === "unavailable"
+            visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
             width: parent.width - Style.space(24)
             text: "Chroncal is unavailable\nThe agenda will retry automatically."
@@ -186,7 +233,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && root.agendaData.status === "ok" && root.groups.length === 0
+            visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "ok" && root.groups.length === 0
             anchors.centerIn: parent
             text: "No upcoming events"
             color: Util.alpha(root.contentForeground, 0.66)
@@ -196,7 +243,7 @@ Panel {
 
           Flickable {
             id: agendaFlick
-            visible: !root.showingDetails && root.agendaData.status === "ok" && root.groups.length > 0
+            visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "ok" && root.groups.length > 0
             anchors.fill: parent
             contentWidth: width
             contentHeight: groupsColumn.implicitHeight
@@ -260,6 +307,20 @@ Panel {
             onEmailRequested: root.emailParticipants()
             onCopyRequested: root.copyEventDetails()
             onChroncalRequested: root.openChroncal()
+          }
+
+          CalendarSettings {
+            visible: root.showingSettings
+            anchors.fill: parent
+            bar: root.bar
+            calendars: root.calendars
+            includedCalendarIds: root.setting("includedCalendarIds", [])
+            showTime: root.setting("showTime", "On")
+            showTitle: root.setting("showTitle", "On")
+            showAllDay: root.setting("showAllDay", "On")
+            showEventsWithoutParticipants: root.setting("showEventsWithoutParticipants", "On")
+            showEventsWithoutLocation: root.setting("showEventsWithoutLocation", "On")
+            onConfigurationChanged: function(values) { root.persistSettings(values) }
           }
         }
       }

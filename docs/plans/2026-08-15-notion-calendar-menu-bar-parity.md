@@ -49,7 +49,7 @@
 - Create: `components/EventRow.qml`
 - Modify: `BarWidget.qml`
 - Modify: `manifest.json`
-- Create: `tests/test-model.py`
+- Create: `tests/test-model.js`
 
 **Steps:**
 1. Write failing model contract tests for grouping by local day, selection clamping, relative-day labels, time ranges, and current-event progress.
@@ -109,7 +109,7 @@
 - Create: `components/ShortcutHelp.qml`
 - Modify: `Panel.qml`
 - Modify: `Model.js`
-- Modify: `tests/test-model.py`
+- Modify: `tests/test-model.js`
 
 **Steps:**
 1. Add failing tests for case-insensitive search, stable selection after filtering, next/previous event, and today navigation.

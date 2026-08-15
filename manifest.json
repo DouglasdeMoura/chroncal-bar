@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Douglas Moura",
   "license": "MIT",
-  "description": "Shows the next remaining Chroncal event on the Omarchy Quattro bar.",
+  "description": "Notion Calendar-inspired Chroncal menu-bar agenda for Omarchy Quattro.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "Chroncal Bar",
-    "description": "Next remaining Chroncal event",
+    "description": "Upcoming Chroncal agenda and quick actions",
     "category": "Time",
     "allowMultiple": false,
     "defaultSection": "right",
@@ -27,6 +27,75 @@
         "max": 3600,
         "step": 15,
         "defaultValue": 60
+      },
+      {
+        "key": "lookaheadDays",
+        "type": "integer",
+        "label": "Agenda horizon (days)",
+        "min": 1,
+        "max": 30,
+        "step": 1,
+        "defaultValue": 7,
+        "description": "How many days the panel and menu-bar preview load."
+      },
+      {
+        "key": "maxTitleLength",
+        "type": "integer",
+        "label": "Maximum bar title length",
+        "min": 12,
+        "max": 120,
+        "step": 2,
+        "defaultValue": 42
+      },
+      {
+        "key": "showTime",
+        "type": "enum",
+        "label": "Show event time on bar",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "On"
+      },
+      {
+        "key": "showTitle",
+        "type": "enum",
+        "label": "Show event title on bar",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "On"
+      },
+      {
+        "key": "showAllDay",
+        "type": "enum",
+        "label": "Include all-day events",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "On"
+      },
+      {
+        "key": "showEventsWithoutParticipants",
+        "type": "enum",
+        "label": "Include events without participants",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "On"
+      },
+      {
+        "key": "showEventsWithoutLocation",
+        "type": "enum",
+        "label": "Include events without location or meeting link",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "On"
       }
     ]
   }

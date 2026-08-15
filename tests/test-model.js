@@ -66,6 +66,22 @@ assert.match(model.eventDetailsText(detailedEvent), /Current/);
 assert.match(model.eventDetailsText(detailedEvent), /Discuss launch plan/);
 assert.match(model.eventDetailsText(detailedEvent), /alice@example.test/);
 
+const filterEvents = [
+  { ...detailedEvent, id: 21, calendar_id: 1, all_day: false },
+  { ...events[2], id: 22, calendar_id: 2, all_day: true, attendees: [], location: "", conference_url: "", url: "" },
+  { ...events[1], id: 23, calendar_id: 3, all_day: false, attendees: [], location: "", conference_url: "", url: "" }
+];
+assert.deepEqual(model.filterEvents(filterEvents, { includedCalendarIds: ["1"] }).map(event => event.id), [21]);
+assert.deepEqual(model.filterEvents(filterEvents, { showAllDay: false }).map(event => event.id), [21, 23]);
+assert.deepEqual(model.filterEvents(filterEvents, { showEventsWithoutParticipants: false }).map(event => event.id), [21]);
+assert.deepEqual(model.filterEvents(filterEvents, { showEventsWithoutLocation: false }).map(event => event.id), [21]);
+const filteredAgenda = model.filterAgenda({ status: "ok", events: filterEvents, next: filterEvents[0] }, { includedCalendarIds: ["3"] });
+assert.equal(filteredAgenda.next.id, 23);
+assert.deepEqual(model.calendarOptions([{ id: 2, name: "Work" }, { id: 1, name: "Personal" }]), [
+  { value: "1", label: "Personal", description: "" },
+  { value: "2", label: "Work", description: "" }
+]);
+
 const presentation = model.barPresentation({
   status: "ok",
   generated_at: "2026-08-15T12:00:00Z",
@@ -87,5 +103,27 @@ assert.match(presentation.text, /Pairing/);
 assert.match(presentation.tooltip, /11:30–12:30/);
 assert.equal(model.barPresentation({ status: "unavailable", events: [] }, 42).className, "unavailable");
 assert.equal(model.barPresentation({ status: "ok", generated_at: "2026-08-15T12:00:00Z", events: [] }, 42).className, "empty");
+
+const futurePresentation = model.barPresentation({
+  status: "ok",
+  generated_at: "2026-08-15T12:00:00Z",
+  events: [{ ...events[0], title: "Monday planning", start_time: "2026-08-17T09:00:00Z", end_time: "2026-08-17T10:00:00Z" }]
+}, 42);
+assert.match(futurePresentation.text, /Mon 09:00/);
+
+const titleOnly = model.barPresentation({
+  status: "ok",
+  generated_at: "2026-08-15T12:00:00Z",
+  events: [{ ...events[0], calendar_color: "#ff3366" }]
+}, 42, { showTime: false, showTitle: true });
+assert.match(titleOnly.text, /Current/);
+assert.doesNotMatch(titleOnly.text, /left|Now|in [0-9]/);
+const timeOnly = model.barPresentation({
+  status: "ok",
+  generated_at: "2026-08-15T12:00:00Z",
+  events: [{ ...events[0], calendar_color: "#ff3366" }]
+}, 42, { showTime: true, showTitle: false });
+assert.doesNotMatch(timeOnly.text, /Current/);
+assert.match(timeOnly.text, /left|Now/);
 
 console.log("agenda model tests: ok");

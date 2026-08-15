@@ -21,13 +21,27 @@ BarWidget {
 
   readonly property string agendaScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-bar-agenda"))
   readonly property string openUrlScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-open-next-event-url"))
-  readonly property var presentation: Model.barPresentation(agendaData, Number(setting("maxTitleLength", 42)))
+  readonly property var filterOptions: ({
+    includedCalendarIds: root.setting("includedCalendarIds", []),
+    showAllDay: root.setting("showAllDay", "On"),
+    showEventsWithoutParticipants: root.setting("showEventsWithoutParticipants", "On"),
+    showEventsWithoutLocation: root.setting("showEventsWithoutLocation", "On")
+  })
+  readonly property var filteredAgenda: Model.filterAgenda(agendaData, filterOptions)
+  readonly property var presentation: Model.barPresentation(
+    filteredAgenda,
+    Number(root.setting("maxTitleLength", 42)),
+    {
+      showTime: root.setting("showTime", "On"),
+      showTitle: root.setting("showTitle", "On")
+    }
+  )
   readonly property string displayText: presentation.text || "\uf133"
 
   function refresh() {
     if (agendaProc.running) return
     loading = true
-    agendaProc.command = [agendaScript, "--days", String(Number(setting("lookaheadDays", 7)))]
+    agendaProc.command = [agendaScript, "--days", String(Number(root.setting("lookaheadDays", 7)))]
     agendaProc.running = true
   }
 
