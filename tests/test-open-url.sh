@@ -9,7 +9,16 @@ trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/state/chroncal" "$TMP/fixtures"
 ln -s "$ROOT/tests/fakes/chroncal" "$TMP/bin/chroncal"
 cp "$FIXTURES/calendars.json" "$TMP/fixtures/calendars.json"
-jq 'map(select(.uid != "ended") | if .uid == "standup" then .conference_uri = "zoommtg://zoom.us/join?confno=123" else . end)' "$FIXTURES/events.json" >"$TMP/fixtures/events.json"
+start_time=$(date -u -d "+1 hour" +%Y-%m-%dT%H:%M:%SZ)
+end_time=$(date -u -d "+2 hours" +%Y-%m-%dT%H:%M:%SZ)
+jq --arg start_time "$start_time" --arg end_time "$end_time" '
+  map(select(.uid != "ended")
+    | if .uid == "standup" then
+        .start_time = $start_time
+        | .end_time = $end_time
+        | .conference_uri = "zoommtg://zoom.us/join?confno=123"
+      else . end)
+' "$FIXTURES/events.json" >"$TMP/fixtures/events.json"
 cp "$FIXTURES/state/chroncal/state.json" "$TMP/state/chroncal/state.json"
 cat >"$TMP/bin/xdg-open" <<'EOF'
 #!/usr/bin/env bash
