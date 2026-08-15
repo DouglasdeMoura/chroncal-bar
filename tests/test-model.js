@@ -111,6 +111,7 @@ assert.deepEqual(model.eventDeleteArgs({ id: 42, uid: "weekly-uid", recurrence_i
   "event", "delete", "weekly-uid", "--recurrence-id", "2026-08-18T14:30:00Z", "--yes"
 ]);
 assert.equal(model.canMutateEvent({ id: 42, recurrence_rule: "FREQ=WEEKLY", recurrence_id: "" }), false);
+assert.equal(model.canMutateEvent({ id: 42, rdates: "2026-08-18T14:30:00Z", recurrence_id: "" }), false);
 assert.equal(model.canMutateEvent({ id: 42, recurrence_rule: "FREQ=WEEKLY", recurrence_id: "2026-08-18T14:30:00Z" }), true);
 assert.equal(model.canMutateEvent({ id: 42, recurrence_rule: "" }), true);
 assert.deepEqual(model.eventMutationArgs("edit", { id: 42, recurrence_rule: "FREQ=WEEKLY" }, createValues), []);

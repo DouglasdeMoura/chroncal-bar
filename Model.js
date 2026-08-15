@@ -361,7 +361,8 @@ function validateEventForm(values) {
 
 function canMutateEvent(event) {
   if (!event) return false;
-  return String(event.recurrence_rule || "") === "" || String(event.recurrence_id || "") !== "";
+  var recurring = String(event.recurrence_rule || "") !== "" || String(event.rdates || "") !== "";
+  return !recurring || String(event.recurrence_id || "") !== "";
 }
 
 function eventMutationTargetArgs(event) {
@@ -446,7 +447,7 @@ function eventAttributes(event) {
   if (event.status) values.push(titleCase(event.status));
   if (event.class) values.push(titleCase(event.class));
   values.push(String(event.transp || "OPAQUE").toLocaleUpperCase() === "TRANSPARENT" ? "Free" : "Busy");
-  if (event.recurrence_rule || event.recurrence_id) values.push("Recurring");
+  if (event.recurrence_rule || event.rdates || event.recurrence_id) values.push("Recurring");
   return values.join(" · ");
 }
 
