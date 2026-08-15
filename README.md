@@ -11,9 +11,9 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Shows every overlapping current event, or the next upcoming event.
 - Uses relative labels near an event (`in 5m`, `12m left`) and explicit weekday labels for later events (`Mon 09:00`).
 - Handles timed, all-day, overlapping, upcoming, and in-progress events.
-- Uses Chroncal calendar colors in the label, tooltip, agenda, and progress indicator.
+- Uses Chroncal calendar colors in the label, agenda, and progress indicator.
 - Hides itself when no visible event remains in the configured preview window.
-- Left click opens the agenda, middle click opens the next event URL, and right click refreshes.
+- Hovering shows nothing. Left click opens the agenda, middle click opens the next event URL, and right click refreshes.
 
 ### Agenda panel
 
@@ -88,7 +88,7 @@ Mouse users can access the same actions through the header and event-detail butt
 
 Open the agenda and press `,`, or use the settings button. Available settings:
 
-- Preview window and refresh interval.
+- Days ahead (1–30) and refresh interval.
 - Maximum bar-title length and the relative-countdown window.
 - Included calendars.
 - Show or hide time and title in the bar.
