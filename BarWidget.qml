@@ -19,6 +19,7 @@ BarWidget {
     return value.replace(/\/$/, "")
   }
 
+  readonly property string chroncalExecScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-exec"))
   readonly property string agendaScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-bar-agenda"))
   readonly property string openUrlScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-open-next-event-url"))
   readonly property var filterOptions: ({

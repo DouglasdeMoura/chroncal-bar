@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
@@ -23,8 +24,15 @@ Panel {
   readonly property var calendars: hostWidget ? (hostWidget.agendaData.calendars || []) : []
   property int selectedEventId: -1
   property var selectedEvent: null
-  readonly property bool showingDetails: selectedEvent !== null
+  property string editorMode: ""
+  readonly property bool showingEditor: editorMode !== ""
+  readonly property bool showingDetails: selectedEvent !== null && !showingEditor
   property bool showingSettings: false
+  property bool mutationBusy: false
+  property string mutationKind: ""
+  property string mutationError: ""
+  property string mutationStdoutText: ""
+  property string mutationStderrText: ""
   property string actionStatus: ""
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
@@ -39,7 +47,9 @@ Panel {
     root.selectedEvent = null
     root.selectedEventId = -1
     root.searchQuery = ""
+    root.editorMode = ""
     root.showingSettings = false
+    deleteConfirm.opened = false
     root.controller.hide()
   }
 
@@ -57,12 +67,15 @@ Panel {
   function showEvent(eventData) {
     selectedEventId = Number(eventData.id)
     selectedEvent = eventData
+    editorMode = ""
     showingSettings = false
     actionStatus = ""
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function backToAgenda() {
     selectedEvent = null
+    editorMode = ""
     showingSettings = false
     actionStatus = ""
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -70,6 +83,7 @@ Panel {
 
   function toggleSettings() {
     selectedEvent = null
+    editorMode = ""
     showingSettings = showingSettings ? false : true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -134,6 +148,79 @@ Panel {
     if (hostWidget && hostWidget.refresh) hostWidget.refresh()
   }
 
+  function startCreate() {
+    selectedEvent = null
+    showingSettings = false
+    mutationError = ""
+    editorMode = "create"
+  }
+
+  function startEdit() {
+    if (!selectedEvent) return
+    showingSettings = false
+    mutationError = ""
+    editorMode = "edit"
+    Qt.callLater(function() { eventEditor.initialize() })
+  }
+
+  function cancelEditor() {
+    var wasEditing = editorMode === "edit"
+    editorMode = ""
+    mutationError = ""
+    if (!wasEditing) selectedEvent = null
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function submitEditor(values) {
+    var args = Model.eventMutationArgs(editorMode, selectedEvent, values)
+    if (args.length === 0) {
+      mutationError = "Check the event fields"
+      return
+    }
+    runMutation(args, editorMode)
+  }
+
+  function requestDelete() {
+    if (!selectedEvent || mutationBusy) return
+    deleteConfirm.selectedIndex = 1
+    deleteConfirm.opened = true
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function confirmDelete() {
+    deleteConfirm.opened = false
+    runMutation(Model.eventDeleteArgs(selectedEvent), "delete")
+  }
+
+  function runMutation(args, kind) {
+    if (mutationBusy || !hostWidget || !hostWidget.chroncalExecScript) return
+    mutationBusy = true
+    mutationKind = kind
+    mutationError = ""
+    mutationStdoutText = ""
+    mutationStderrText = ""
+    mutationProc.command = [hostWidget.chroncalExecScript].concat(args)
+    mutationProc.running = true
+  }
+
+  function finishMutation(exitCode) {
+    mutationBusy = false
+    if (exitCode !== 0) {
+      mutationError = String(mutationStderrText || mutationStdoutText || "Chroncal could not save the event").trim()
+      actionStatus = mutationError
+      actionStatusTimer.restart()
+      return
+    }
+    var completed = mutationKind
+    editorMode = ""
+    selectedEvent = null
+    selectedEventId = -1
+    actionStatus = completed === "delete" ? "Event deleted" : (completed === "edit" ? "Event updated" : "Event created")
+    actionStatusTimer.restart()
+    refresh()
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
   function openUrl(url) {
     if (!url) return
     Quickshell.execDetached(["xdg-open", String(url)])
@@ -170,6 +257,13 @@ Panel {
     onTriggered: root.actionStatus = ""
   }
 
+  Process {
+    id: mutationProc
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.mutationStdoutText = text }
+    stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.mutationStderrText = text }
+    onExited: function(exitCode) { Qt.callLater(function() { root.finishMutation(exitCode) }) }
+  }
+
   KeyboardPanel {
     id: panel
     anchorItem: root.anchorItem
@@ -183,22 +277,40 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: searchField.activeFocus
+      blocked: searchField.activeFocus || root.showingEditor
       onMoveRequested: function(dx, dy) {
-        if (!root.showingDetails && !root.showingSettings && dy !== 0) root.moveSelection(dy)
+        if (deleteConfirm.opened) {
+          if (dx !== 0 || dy !== 0) deleteConfirm.selectedIndex = deleteConfirm.selectedIndex === 0 ? 1 : 0
+          return
+        }
+        if (!root.showingDetails && !root.showingSettings && !root.showingEditor && dy !== 0) root.moveSelection(dy)
       }
       onCloseRequested: {
-        if (root.showingDetails || root.showingSettings) root.backToAgenda()
+        if (deleteConfirm.opened) deleteConfirm.opened = false
+        else if (root.showingEditor) root.cancelEditor()
+        else if (root.showingDetails || root.showingSettings) root.backToAgenda()
         else root.close()
       }
       onActivateRequested: {
-        if (!root.showingDetails && !root.showingSettings) root.activateSelection()
+        if (deleteConfirm.opened) {
+          if (deleteConfirm.selectedIndex === 0) deleteConfirm.opened = false
+          else root.confirmDelete()
+        } else if (!root.showingDetails && !root.showingSettings && !root.showingEditor) root.activateSelection()
       }
-      onTabRequested: function(direction) { root.switchPanel(direction) }
+      onTabRequested: function(direction) {
+        if (deleteConfirm.opened) deleteConfirm.selectedIndex = deleteConfirm.selectedIndex === 0 ? 1 : 0
+        else root.switchPanel(direction)
+      }
+      onDeleteRequested: {
+        if (root.showingDetails) root.requestDelete()
+      }
       onTextKey: function(text) {
         if (text === "r" || text === "R") root.refresh()
         else if (text === "/") root.beginSearch()
         else if (text === ",") root.toggleSettings()
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && (text === "n" || text === "N")) root.startCreate()
+        else if (root.showingDetails && (text === "e" || text === "E")) root.startEdit()
+        else if (root.showingDetails && (text === "d" || text === "D")) root.requestDelete()
         else if (root.showingDetails && (text === "j" || text === "J")) root.joinEvent()
         else if (root.showingDetails && (text === "c" || text === "C")) root.copyEventDetails()
         else if (root.showingDetails && (text === "o" || text === "O")) root.openChroncal()
@@ -216,7 +328,7 @@ Panel {
           Text {
             width: parent.width - headerActions.width
             anchors.verticalCenter: parent.verticalCenter
-            text: root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : "UPCOMING")
+            text: root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : "UPCOMING"))
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -239,7 +351,16 @@ Panel {
             }
 
             PanelActionButton {
-              visible: !root.showingDetails
+              visible: root.showingEditor
+              iconText: "←"
+              tooltipText: "Cancel and go back"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.cancelEditor()
+            }
+
+            PanelActionButton {
+              visible: !root.showingDetails && !root.showingEditor
               iconText: root.showingSettings ? "←" : "󰒓"
               tooltipText: root.showingSettings ? "Back to agenda" : "Calendar settings"
               foreground: root.contentForeground
@@ -248,7 +369,16 @@ Panel {
             }
 
             PanelActionButton {
-              visible: !root.showingDetails && !root.showingSettings
+              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor
+              iconText: "+"
+              tooltipText: "Create event (N)"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.startCreate()
+            }
+
+            PanelActionButton {
+              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor
               iconText: "󰑐"
               tooltipText: root.hostWidget && root.hostWidget.loading ? "Refreshing" : "Refresh agenda"
               foreground: root.contentForeground
@@ -271,7 +401,7 @@ Panel {
 
           TextField {
             id: searchField
-            visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "ok"
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && root.agendaData.status === "ok"
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
@@ -316,7 +446,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "unavailable"
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
             width: parent.width - Style.space(24)
             text: "Chroncal is unavailable\nThe agenda will retry automatically."
@@ -328,7 +458,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "ok" && root.groups.length === 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && root.agendaData.status === "ok" && root.groups.length === 0
             anchors.centerIn: parent
             text: root.searchQuery !== "" ? "No matching events" : "No upcoming events"
             color: Util.alpha(root.contentForeground, 0.66)
@@ -338,7 +468,7 @@ Panel {
 
           Flickable {
             id: agendaFlick
-            visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "ok" && root.groups.length > 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && root.agendaData.status === "ok" && root.groups.length > 0
             anchors.top: searchField.bottom
             anchors.topMargin: Style.space(10)
             anchors.left: parent.left
@@ -404,12 +534,29 @@ Panel {
             bar: root.bar
             eventData: root.selectedEvent || ({})
             actionStatus: root.actionStatus
+            busy: root.mutationBusy
             onBackRequested: root.backToAgenda()
             onJoinRequested: root.joinEvent()
             onMapRequested: root.openMap()
             onEmailRequested: root.emailParticipants()
             onCopyRequested: root.copyEventDetails()
             onChroncalRequested: root.openChroncal()
+            onEditRequested: root.startEdit()
+            onDeleteRequested: root.requestDelete()
+          }
+
+          EventEditor {
+            id: eventEditor
+            visible: root.showingEditor
+            anchors.fill: parent
+            bar: root.bar
+            editorMode: root.editorMode
+            eventData: root.selectedEvent
+            calendars: root.calendars
+            busy: root.mutationBusy
+            externalError: root.mutationError
+            onCanceled: root.cancelEditor()
+            onSubmitted: function(values) { root.submitEditor(values) }
           }
 
           CalendarSettings {
@@ -424,6 +571,19 @@ Panel {
             showEventsWithoutParticipants: root.setting("showEventsWithoutParticipants", "On")
             showEventsWithoutLocation: root.setting("showEventsWithoutLocation", "On")
             onConfigurationChanged: function(values) { root.persistSettings(values) }
+          }
+
+          ConfirmDialog {
+            id: deleteConfirm
+            anchors.fill: parent
+            z: 20
+            message: "Delete “" + String(root.selectedEvent ? root.selectedEvent.title : "this event") + "”?"
+            confirmText: "Delete"
+            background: root.bar ? root.bar.background : Color.background
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+            onCanceled: opened = false
+            onConfirmed: root.confirmDelete()
           }
         }
       }

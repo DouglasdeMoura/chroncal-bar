@@ -10,6 +10,7 @@ Flickable {
   property var bar: null
   property var eventData: ({})
   property string actionStatus: ""
+  property bool busy: false
 
   signal backRequested()
   signal joinRequested()
@@ -17,6 +18,8 @@ Flickable {
   signal emailRequested()
   signal copyRequested()
   signal chroncalRequested()
+  signal editRequested()
+  signal deleteRequested()
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -240,6 +243,26 @@ Flickable {
         fontFamily: root.fontFamily
         focusable: true
         onClicked: root.chroncalRequested()
+      }
+
+      PanelActionButton {
+        iconText: "󰏫"
+        tooltipText: "Edit event"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        focusable: true
+        enabled: !root.busy
+        onClicked: root.editRequested()
+      }
+
+      PanelActionButton {
+        iconText: "󰆴"
+        tooltipText: "Delete event"
+        foreground: Color.urgent
+        fontFamily: root.fontFamily
+        focusable: true
+        enabled: !root.busy
+        onClicked: root.deleteRequested()
       }
     }
 

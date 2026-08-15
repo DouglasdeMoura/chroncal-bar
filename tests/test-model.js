@@ -70,6 +70,33 @@ assert.match(model.eventDetailsText(detailedEvent), /Current/);
 assert.match(model.eventDetailsText(detailedEvent), /Discuss launch plan/);
 assert.match(model.eventDetailsText(detailedEvent), /alice@example.test/);
 
+const createValues = {
+  title: "Review launch",
+  date: "2026-08-18",
+  time: "14:30",
+  duration: "45m",
+  allDay: false,
+  calendar: "Work",
+  location: "Room 4",
+  description: "Decide launch date"
+};
+assert.deepEqual(model.validateEventForm(createValues), []);
+assert.deepEqual(model.eventMutationArgs("create", null, createValues), [
+  "event", "add", "Review launch", "--date", "2026-08-18", "--calendar", "Work",
+  "--time", "14:30", "--duration", "45m", "--location", "Room 4", "--description", "Decide launch date"
+]);
+assert.deepEqual(model.eventMutationArgs("edit", { id: 42, all_day: false }, createValues).slice(0, 5), [
+  "event", "update", "42", "--title", "Review launch"
+]);
+assert.deepEqual(model.eventDeleteArgs({ id: 42 }), ["event", "delete", "42", "--yes"]);
+assert.deepEqual(model.eventDeleteArgs({ id: 42, uid: "weekly-uid", recurrence_id: "2026-08-18T14:30:00Z" }), [
+  "event", "delete", "weekly-uid", "--recurrence-id", "2026-08-18T14:30:00Z", "--yes"
+]);
+assert.match(model.validateEventForm({ ...createValues, title: "" })[0], /title/i);
+assert.match(model.validateEventForm({ ...createValues, duration: "" })[0], /duration/i);
+const clearOptionalArgs = model.eventMutationArgs("edit", { id: 42, all_day: false }, { ...createValues, location: "", description: "" });
+assert.deepEqual(clearOptionalArgs.slice(-4), ["--location", "", "--description", ""]);
+
 const filterEvents = [
   { ...detailedEvent, id: 21, calendar_id: 1, all_day: false },
   { ...events[2], id: 22, calendar_id: 2, all_day: true, attendees: [], location: "", conference_url: "", url: "" },

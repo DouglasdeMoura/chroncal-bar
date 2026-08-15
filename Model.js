@@ -278,6 +278,108 @@ function barPresentation(agenda, maximumTitleLength, displayOptions) {
   };
 }
 
+function dateInputValue(value, allDay) {
+  if (allDay && String(value || "").length >= 10) return String(value).slice(0, 10);
+  var date = parseDate(value);
+  if (!date) return "";
+  return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
+}
+
+function timeInputValue(value) {
+  var date = parseDate(value);
+  return date ? pad2(date.getHours()) + ":" + pad2(date.getMinutes()) : "";
+}
+
+function durationInputValue(event) {
+  var start = parseDate(event && event.start_time);
+  var end = parseDate(event && event.end_time);
+  if (!start || !end || end <= start) return "1h";
+  var minutes = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+  var hours = Math.floor(minutes / 60);
+  var remainder = minutes % 60;
+  if (hours === 0) return remainder + "m";
+  return hours + "h" + (remainder > 0 ? remainder + "m" : "");
+}
+
+function eventEditorValues(event, nowValue) {
+  if (event) {
+    return {
+      title: String(event.title || ""),
+      date: dateInputValue(event.start_time, event.all_day === true),
+      time: event.all_day === true ? "" : timeInputValue(event.start_time),
+      duration: event.all_day === true ? "" : durationInputValue(event),
+      allDay: event.all_day === true,
+      calendar: String(event.calendar_name || ""),
+      location: String(event.location || ""),
+      description: String(event.description || "")
+    };
+  }
+  var nextHour = parseDate(nowValue) || new Date();
+  nextHour = new Date(nextHour.getTime());
+  nextHour.setMinutes(0, 0, 0);
+  nextHour.setHours(nextHour.getHours() + 1);
+  return {
+    title: "",
+    date: dateInputValue(nextHour, false),
+    time: timeInputValue(nextHour),
+    duration: "1h",
+    allDay: false,
+    calendar: "",
+    location: "",
+    description: ""
+  };
+}
+
+function validateEventForm(values) {
+  var form = values || {};
+  var errors = [];
+  if (String(form.title || "").trim() === "") errors.push("Event title is required");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(form.date || ""))) errors.push("Date must use YYYY-MM-DD");
+  if (form.allDay !== true && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(form.time || ""))) errors.push("Time must use HH:MM");
+  if (form.allDay !== true && !/^(?=.+)(?:\d+h)?(?:\d+m)?$/.test(String(form.duration || ""))) errors.push("Duration must look like 30m or 1h30m");
+  return errors;
+}
+
+function eventMutationTargetArgs(event) {
+  if (event && event.recurrence_id && event.uid)
+    return [String(event.uid), "--recurrence-id", String(event.recurrence_id)];
+  return [String(event && (event.id || event.uid) || "")];
+}
+
+function pushOptionalFlag(args, flag, value) {
+  var text = String(value || "").trim();
+  if (text !== "") args.push(flag, text);
+}
+
+function eventMutationArgs(mode, event, values) {
+  var errors = validateEventForm(values);
+  if (errors.length > 0) return [];
+  var form = values || {};
+  var title = String(form.title || "").trim();
+  var args;
+  if (mode === "edit") {
+    args = ["event", "update"].concat(eventMutationTargetArgs(event));
+    args.push("--title", title);
+  } else {
+    args = ["event", "add", title];
+  }
+  args.push("--date", String(form.date));
+  pushOptionalFlag(args, "--calendar", form.calendar);
+  if (form.allDay !== true) args.push("--time", String(form.time), "--duration", String(form.duration));
+  if (mode === "edit") {
+    args.push("--location", String(form.location || ""));
+    args.push("--description", String(form.description || ""));
+  } else {
+    pushOptionalFlag(args, "--location", form.location);
+    pushOptionalFlag(args, "--description", form.description);
+  }
+  return args;
+}
+
+function eventDeleteArgs(event) {
+  return ["event", "delete"].concat(eventMutationTargetArgs(event)).concat(["--yes"]);
+}
+
 function eventOpenUrl(event) {
   if (!event) return "";
   return String(event.conference_url || event.url || "");
