@@ -15,7 +15,7 @@ Let users choose how many days the Chroncal agenda loads from the panel's Settin
 
 ## Data Flow
 
-`CalendarSettings` emits `{ lookaheadDays: value }`. `Panel.persistSettings` writes the updated entry through Omarchy's existing `updateEntryInline` path, then schedules `hostWidget.refresh()` after the updated settings reach `BarWidget`. `BarWidget.refresh` already passes `lookaheadDays` to `chroncal-bar-agenda --days`.
+`CalendarSettings` emits `{ lookaheadDays: value }`. `Panel.persistSettings` writes the updated entry through Omarchy's existing `updateEntryInline` path, then schedules `hostWidget.broadcast("refresh")` after the updated settings reach `BarWidget`, refreshing every monitor instance. `BarWidget.refresh` already passes `lookaheadDays` to `chroncal-bar-agenda --days`.
 
 ## Boundaries and Errors
 

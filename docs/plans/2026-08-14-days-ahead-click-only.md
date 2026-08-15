@@ -51,7 +51,7 @@ In `persistSettings`, compare an incoming `lookaheadDays` with the current setti
 
 **Step 2: Request refresh after persistence**
 
-After `updateEntryInline`, use `Qt.callLater` to call `hostWidget.refresh()` when the horizon changed.
+After `updateEntryInline`, use `Qt.callLater` to call `hostWidget.broadcast("refresh")` when the horizon changed so every monitor instance reloads.
 
 **Step 3: Preserve refresh requests during an active query**
 

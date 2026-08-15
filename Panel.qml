@@ -103,8 +103,8 @@ Panel {
     if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
     if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
       root.bar.shell.updateEntryInline(root.moduleName, entry)
-    if (refreshAgenda && root.hostWidget && typeof root.hostWidget.refresh === "function")
-      Qt.callLater(function() { root.hostWidget.refresh() })
+    if (refreshAgenda && root.hostWidget && typeof root.hostWidget.broadcast === "function")
+      Qt.callLater(function() { root.hostWidget.broadcast("refresh") })
   }
 
   function selectedEventIndex() {
