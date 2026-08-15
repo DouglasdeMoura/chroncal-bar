@@ -245,8 +245,8 @@ Flickable {
     Text {
       visible: (root.submitAttempted && root.validationErrors.length > 0) || root.externalError !== ""
       width: parent.width
-      text: root.externalError
-      textFormat: Text.PlainText !== "" ? root.externalError : root.validationErrors.join("\n")
+      text: root.externalError !== "" ? root.externalError : root.validationErrors.join("\n")
+      textFormat: Text.PlainText
       color: Color.urgent
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
