@@ -95,6 +95,16 @@ function clampSelection(index, length) {
   return Math.max(0, Math.min(length - 1, index));
 }
 
+function firstEventIndexForDate(events, nowValue) {
+  var now = parseDate(nowValue) || new Date();
+  var today = dateKey(now);
+  for (var index = 0; index < (events || []).length; index += 1) {
+    var start = parseDate(events[index].start_time);
+    if (start && dateKey(start) === today) return index;
+  }
+  return -1;
+}
+
 function escapeHtml(value) {
   return String(value === undefined || value === null ? "" : value)
     .replace(/&/g, "&amp;")
@@ -130,7 +140,7 @@ function relativeDayLabel(date, now) {
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()];
 }
 
-function eventLeadLabel(event, now) {
+function eventLeadLabel(event, now, relativeLeadMinutes) {
   var start = parseDate(event.start_time);
   var end = parseDate(event.end_time);
   if (!start || !end) return "";
@@ -138,7 +148,8 @@ function eventLeadLabel(event, now) {
   if (untilStart > 0) {
     var dayLabel = relativeDayLabel(start, now);
     if (dayLabel !== "") return dayLabel + " " + formatTime(event.start_time);
-    return untilStart <= 600 ? "in " + durationLabel(untilStart) : formatTime(event.start_time);
+    var leadSeconds = Math.max(0, Number(relativeLeadMinutes === undefined ? 10 : relativeLeadMinutes)) * 60;
+    return untilStart <= leadSeconds ? "in " + durationLabel(untilStart) : formatTime(event.start_time);
   }
   if ((now.getTime() - start.getTime()) < 60000) return "Now";
   return durationLabel((end.getTime() - now.getTime()) / 1000) + " left";
@@ -231,6 +242,7 @@ function barPresentation(agenda, maximumTitleLength, displayOptions) {
   var titleLimit = maximumTitleLength || 42;
   var showTime = optionEnabled(displayOptions, "showTime", true);
   var showTitle = optionEnabled(displayOptions, "showTitle", true);
+  var relativeLeadMinutes = Number(displayOptions && displayOptions.relativeLeadMinutes !== undefined ? displayOptions.relativeLeadMinutes : 10);
   if (anchor.all_day === true) {
     var allDayParts = [];
     if (showTime) allDayParts.push("All day");
@@ -255,7 +267,7 @@ function barPresentation(agenda, maximumTitleLength, displayOptions) {
 
   if (cluster.length <= 1) {
     var parts = [];
-    if (showTime) parts.push(eventLeadLabel(anchor, now));
+    if (showTime) parts.push(eventLeadLabel(anchor, now, relativeLeadMinutes));
     if (showTitle) parts.push(escapeHtml(truncate(anchor.title, titleLimit)));
     return {
       text: parts.length > 0 ? richText(" " + parts.join(" · ") + " ") : "",
@@ -266,7 +278,7 @@ function barPresentation(agenda, maximumTitleLength, displayOptions) {
 
   var visible = cluster.slice(0, 3).map(function(event) {
     var eventParts = [];
-    if (showTime) eventParts.push(eventLeadLabel(event, now));
+    if (showTime) eventParts.push(eventLeadLabel(event, now, relativeLeadMinutes));
     if (showTitle) eventParts.push(escapeHtml(truncate(event.title, 18)));
     return colorBlock(event) + (eventParts.length > 0 ? " " + eventParts.join(" · ") : "");
   }).join(" | ");
@@ -380,14 +392,36 @@ function eventDeleteArgs(event) {
   return ["event", "delete"].concat(eventMutationTargetArgs(event)).concat(["--yes"]);
 }
 
+function firstUrlInText(value) {
+  var match = String(value || "").match(/https?:\/\/[^\s<>()]+/i);
+  return match ? match[0].replace(/[.,;:!?]+$/, "") : "";
+}
+
 function eventOpenUrl(event) {
   if (!event) return "";
-  return String(event.conference_url || event.url || "");
+  return String(event.conference_url || event.url || firstUrlInText(event.location) || firstUrlInText(event.description) || "");
 }
 
 function eventMapUrl(event) {
   var location = event ? String(event.location || "") : "";
+  var direct = firstUrlInText(location);
+  if (direct !== "") return direct;
   return location === "" ? "" : "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(location);
+}
+
+function titleCase(value) {
+  var text = String(value || "").toLocaleLowerCase();
+  return text === "" ? "" : text.charAt(0).toLocaleUpperCase() + text.slice(1);
+}
+
+function eventAttributes(event) {
+  if (!event) return "";
+  var values = [];
+  if (event.status) values.push(titleCase(event.status));
+  if (event.class) values.push(titleCase(event.class));
+  values.push(String(event.transp || "OPAQUE").toLocaleUpperCase() === "TRANSPARENT" ? "Free" : "Busy");
+  if (event.recurrence_rule || event.recurrence_id) values.push("Recurring");
+  return values.join(" · ");
 }
 
 function eventMailUrl(event) {

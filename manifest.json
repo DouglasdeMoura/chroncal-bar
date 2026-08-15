@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "douglasdemoura.chroncal-bar",
   "name": "Chroncal Bar",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Douglas Moura",
   "license": "MIT",
-  "description": "Notion Calendar-inspired Chroncal menu-bar agenda for Omarchy Quattro.",
+  "description": "Chroncal menu-bar agenda, search, quick actions, and event editing for Omarchy Quattro.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "Chroncal Bar",
-    "description": "Upcoming Chroncal agenda and quick actions",
+    "description": "Chroncal agenda, search, quick actions, and event editing",
     "category": "Time",
     "allowMultiple": false,
     "defaultSection": "right",
@@ -46,6 +46,16 @@
         "max": 120,
         "step": 2,
         "defaultValue": 42
+      },
+      {
+        "key": "relativeLeadMinutes",
+        "type": "integer",
+        "label": "Relative countdown window (minutes)",
+        "min": 0,
+        "max": 120,
+        "step": 5,
+        "defaultValue": 10,
+        "description": "Use relative labels for events starting within this window; use 0 for exact times."
       },
       {
         "key": "showTime",

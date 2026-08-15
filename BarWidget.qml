@@ -34,7 +34,8 @@ BarWidget {
     Number(root.setting("maxTitleLength", 42)),
     {
       showTime: root.setting("showTime", "On"),
-      showTitle: root.setting("showTitle", "On")
+      showTitle: root.setting("showTitle", "On"),
+      relativeLeadMinutes: Number(root.setting("relativeLeadMinutes", 10))
     }
   )
   readonly property string displayText: presentation.text || "\uf133"

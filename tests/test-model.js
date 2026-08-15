@@ -46,6 +46,8 @@ assert.equal(model.eventProgress(events[1], "2026-08-15T12:00:00Z"), 0);
 assert.equal(model.clampSelection(-1, 3), 0);
 assert.equal(model.clampSelection(4, 3), 2);
 assert.equal(model.clampSelection(0, 0), -1);
+assert.equal(model.firstEventIndexForDate(events, "2026-08-15T12:00:00Z"), 0);
+assert.equal(model.firstEventIndexForDate(events.slice(1), "2026-08-15T12:00:00Z"), -1);
 
 const detailedEvent = {
   ...events[0],
@@ -59,6 +61,9 @@ const detailedEvent = {
   ]
 };
 assert.equal(model.eventOpenUrl(detailedEvent), "https://meet.example.test/room");
+assert.equal(model.eventOpenUrl({ location: "Join at https://meet.example.test/from-location", description: "Fallback https://notes.example.test" }), "https://meet.example.test/from-location");
+assert.equal(model.eventOpenUrl({ description: "Notes: https://notes.example.test/doc." }), "https://notes.example.test/doc");
+assert.match(model.eventAttributes({ status: "CONFIRMED", class: "PRIVATE", transp: "TRANSPARENT", recurrence_rule: "FREQ=WEEKLY" }), /Confirmed · Private · Free · Recurring/);
 assert.equal(model.eventMapUrl(detailedEvent), "https://www.google.com/maps/search/?api=1&query=Rua%20Exemplo%2010%2C%20Curitiba");
 assert.equal(model.eventMailUrl(detailedEvent), "mailto:alice%40example.test%2Cbob%40example.test");
 assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "launch").map(event => event.id), [1]);
@@ -141,6 +146,12 @@ const futurePresentation = model.barPresentation({
   events: [{ ...events[0], title: "Monday planning", start_time: "2026-08-17T09:00:00Z", end_time: "2026-08-17T10:00:00Z" }]
 }, 42);
 assert.match(futurePresentation.text, /Mon 09:00/);
+const countdownPresentation = model.barPresentation({
+  status: "ok",
+  generated_at: "2026-08-15T12:00:00Z",
+  events: [{ ...events[0], title: "Soon", start_time: "2026-08-15T12:20:00Z", end_time: "2026-08-15T13:20:00Z" }]
+}, 42, { relativeLeadMinutes: 30 });
+assert.match(countdownPresentation.text, /in 20m/);
 
 const titleOnly = model.barPresentation({
   status: "ok",

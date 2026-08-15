@@ -106,6 +106,16 @@ Flickable {
       }
     }
 
+    Text {
+      visible: Model.eventAttributes(root.eventData) !== ""
+      width: parent.width
+      text: Model.eventAttributes(root.eventData)
+      color: Util.alpha(root.foreground, 0.54)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      elide: Text.ElideRight
+    }
+
     Column {
       visible: String(root.eventData.location || "") !== ""
       width: parent.width

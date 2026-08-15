@@ -1,24 +1,41 @@
 # Chroncal Bar
 
-An [Omarchy Quattro](https://omarchy.org/) bar widget that shows the next remaining event from [Chroncal](https://github.com/DouglasdeMoura/chroncal).
+An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chroncal](https://github.com/DouglasdeMoura/chroncal).
 
 ![Chroncal Bar showing an upcoming event in the Omarchy bar](preview.png)
 
 ## Features
 
-- Shows the next visible event that has not ended.
-- Uses relative labels near an event (`in 5m`, `12m left`).
-- Handles all-day, overlapping, upcoming, and in-progress events.
-- Uses Chroncal calendar colors in the label and tooltip.
-- Hides itself when no events remain today or Chroncal is unavailable.
-- Left click opens Chroncal; middle click opens the event URL; right click refreshes.
+### Bar
+
+- Shows every overlapping current event, or the next upcoming event.
+- Uses relative labels near an event (`in 5m`, `12m left`) and explicit weekday labels for later events (`Mon 09:00`).
+- Handles timed, all-day, overlapping, upcoming, and in-progress events.
+- Uses Chroncal calendar colors in the label, tooltip, agenda, and progress indicator.
+- Hides itself when no visible event remains in the configured preview window.
+- Left click opens the agenda, middle click opens the next event URL, and right click refreshes.
+
+### Agenda panel
+
+- Groups events under Today, Tomorrow, and later dates.
+- Filters hidden calendars and supports per-calendar inclusion.
+- Searches titles, descriptions, locations, calendar names, and participants.
+- Shows location, notes, conferencing links, attendees, and RSVP state.
+- Opens meeting links, maps, participant email, and Chroncal.
+- Copies complete event details to the clipboard.
+- Creates, edits, and deletes Chroncal events without shell interpolation.
+- Confirms deletion before changing Chroncal data.
+
+This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence authoring, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 
 ## Requirements
 
 - Omarchy Quattro
 - `chroncal` on `PATH`
 - `bash`, `jq`, GNU `date`, and GNU `timeout`
-- `xdg-open` and `notify-send` for middle-click behavior
+- `xdg-open` for links and maps
+- `wl-copy` for copy actions
+- `notify-send` for helper errors
 
 Install Chroncal with mise if needed:
 
@@ -41,15 +58,49 @@ omarchy bar move douglasdemoura.chroncal-bar --section right --after omarchy.tra
 
 The second command is optional. It places the widget beside the tray in the right-aligned bar group.
 
+## Use
+
+| Key | Context | Action |
+| --- | --- | --- |
+| `↑` / `↓`, `J` / `K` | Agenda | Move selection |
+| `n` | Agenda | Select next event |
+| `p` or `b` | Agenda | Select previous event |
+| `t` | Agenda | Jump to today's first event |
+| `Enter` | Agenda | Open selected event |
+| `/` | Agenda | Focus search |
+| `Shift+N` | Agenda | Create event |
+| `R` | Agenda | Refresh |
+| `,` | Agenda | Open settings |
+| `?` | Agenda | Open shortcut help |
+| `E` | Event details | Edit event |
+| `D` or `X` | Event details | Delete with confirmation |
+| `J` | Event details | Join or open event URL |
+| `C` | Event details | Copy event details |
+| `O` | Event details | Open Chroncal |
+| `Ctrl+Enter` | Event editor | Save event |
+| `Esc` | Any panel view | Back, cancel, or close |
+
+Mouse users can access the same actions through the header and event-detail buttons.
+
 ## Configure
 
-The default refresh interval is 60 seconds. Change it through the Omarchy bar settings, or set `interval` on the widget entry in `~/.config/omarchy/shell.json`:
+Open the agenda and press `,`, or use the settings button. Available settings:
 
-```json
-{
-  "id": "douglasdemoura.chroncal-bar",
-  "interval": 60
-}
+- Preview window and refresh interval.
+- Maximum bar-title length and the relative-countdown window.
+- Included calendars.
+- Show or hide time and title in the bar.
+- Include or exclude all-day events.
+- Include or exclude events without participants.
+- Include or exclude events without a physical location or meeting link.
+
+Settings persist on the widget entry in `~/.config/omarchy/shell.json`. They can also be changed from the command line:
+
+```sh
+omarchy bar set douglasdemoura.chroncal-bar interval 60
+omarchy bar set douglasdemoura.chroncal-bar lookaheadDays 7
+omarchy bar set douglasdemoura.chroncal-bar showTitle On
+omarchy bar set douglasdemoura.chroncal-bar relativeLeadMinutes 10
 ```
 
 Force a refresh:
@@ -60,16 +111,11 @@ omarchy-shell douglasdemoura.chroncal-bar refresh
 
 ## Runtime and service behavior
 
-The plugin runs inside Omarchy's long-running Quickshell process, with your user permissions. Its QML timer starts a one-shot helper every 60 seconds; the helper prints one JSON object and exits. The plugin does not start another Quickshell process, install packages, request elevated privileges, or run a remote installer.
+The plugin runs inside Omarchy's long-running Quickshell process with your user permissions. Its QML timer starts a one-shot agenda helper at the configured interval; the helper emits one normalized JSON document and exits. The plugin does not start another Quickshell process, install packages, request elevated privileges, or run a remote installer.
+
+Chroncal remains the source of truth. The plugin calls its CLI to read calendar and event data and to perform explicitly requested create, update, and delete actions. Helpers also read `~/.local/state/chroncal/state.json` for hidden calendar IDs.
 
 Chroncal's optional `chroncal service run` process is separate. This plugin neither installs nor controls that service.
-
-The helpers read:
-
-- Chroncal event and calendar data through the `chroncal` CLI.
-- `~/.local/state/chroncal/state.json` for hidden calendar IDs.
-
-Middle click may launch `xdg-open` for the selected event URL. Left click launches Chroncal in Omarchy's floating terminal.
 
 ## Remove
 
@@ -82,12 +128,15 @@ Removal deletes only the plugin. It does not remove Chroncal, calendar state, or
 ## Development
 
 ```sh
-PLUGIN_DIR="$HOME/.config/omarchy/plugins/douglasdemoura.chroncal-bar"
-QMLLINT="${QMLLINT:-/usr/lib/qt6/bin/qmllint}"
-
-omarchy plugin validate "$PLUGIN_DIR"
-"$QMLLINT" -I "$OMARCHY_PATH/shell" "$PLUGIN_DIR/BarWidget.qml"
+TZ=UTC bun tests/test-model.js
+tests/test-agenda.sh
+bash -n scripts/chroncal-exec scripts/chroncal-bar-agenda scripts/chroncal-next-event scripts/chroncal-open-next-event-url
+omarchy plugin validate .
+/usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell \
+  BarWidget.qml Panel.qml components/*.qml
 ```
+
+`qmllint` exits successfully but reports unresolved `qs.Commons` and `qs.Ui` types outside the running Omarchy shell. Runtime smoke tests cover the real plugin host.
 
 ## License
 

@@ -12,6 +12,7 @@ Flickable {
   property var includedCalendarIds: []
   property string showTime: "On"
   property string showTitle: "On"
+  property int relativeLeadMinutes: 10
   property string showAllDay: "On"
   property string showEventsWithoutParticipants: "On"
   property string showEventsWithoutLocation: "On"
@@ -81,6 +82,18 @@ Flickable {
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.configurationChanged({ showTitle: root.showTitle === "Off" ? "On" : "Off" })
+    }
+
+    NumberField {
+      width: parent.width
+      label: "Relative countdown window (minutes)"
+      value: root.relativeLeadMinutes
+      from: 0
+      to: 120
+      stepSize: 5
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onModified: function(value) { root.configurationChanged({ relativeLeadMinutes: value }) }
     }
 
     Text {

@@ -28,6 +28,7 @@ Panel {
   readonly property bool showingEditor: editorMode !== ""
   readonly property bool showingDetails: selectedEvent !== null && !showingEditor
   property bool showingSettings: false
+  property bool showingHelp: false
   property bool mutationBusy: false
   property string mutationKind: ""
   property string mutationError: ""
@@ -49,6 +50,7 @@ Panel {
     root.searchQuery = ""
     root.editorMode = ""
     root.showingSettings = false
+    root.showingHelp = false
     deleteConfirm.opened = false
     root.controller.hide()
   }
@@ -69,6 +71,7 @@ Panel {
     selectedEvent = eventData
     editorMode = ""
     showingSettings = false
+    showingHelp = false
     actionStatus = ""
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -77,6 +80,7 @@ Panel {
     selectedEvent = null
     editorMode = ""
     showingSettings = false
+    showingHelp = false
     actionStatus = ""
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -84,6 +88,7 @@ Panel {
   function toggleSettings() {
     selectedEvent = null
     editorMode = ""
+    showingHelp = false
     showingSettings = showingSettings ? false : true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -113,20 +118,20 @@ Panel {
   }
 
   function moveSelection(step) {
-    if (showingDetails || showingSettings || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
     var current = selectedEventIndex()
     var next = current < 0 ? (step > 0 ? 0 : visibleEvents.length - 1) : Model.clampSelection(current + step, visibleEvents.length)
     selectedEventId = Number(visibleEvents[next].id)
   }
 
   function activateSelection() {
-    if (showingDetails || showingSettings || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
     var current = selectedEventIndex()
     showEvent(visibleEvents[current < 0 ? 0 : current])
   }
 
   function beginSearch() {
-    if (showingDetails || showingSettings || agendaData.status !== "ok") return
+    if (showingDetails || showingSettings || showingEditor || showingHelp || agendaData.status !== "ok") return
     Qt.callLater(function() { searchField.forceActiveFocus() })
   }
 
@@ -142,6 +147,19 @@ Panel {
     activateSelection()
   }
 
+  function selectToday() {
+    var index = Model.firstEventIndexForDate(visibleEvents, agendaData.generated_at || new Date().toISOString())
+    if (index >= 0) selectedEventId = Number(visibleEvents[index].id)
+  }
+
+  function toggleHelp() {
+    selectedEvent = null
+    editorMode = ""
+    showingSettings = false
+    showingHelp = showingHelp ? false : true
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
   onVisibleEventsChanged: syncSelectionToSearch()
 
   function refresh() {
@@ -151,6 +169,7 @@ Panel {
   function startCreate() {
     selectedEvent = null
     showingSettings = false
+    showingHelp = false
     mutationError = ""
     editorMode = "create"
   }
@@ -158,6 +177,7 @@ Panel {
   function startEdit() {
     if (!selectedEvent) return
     showingSettings = false
+    showingHelp = false
     mutationError = ""
     editorMode = "edit"
     Qt.callLater(function() { eventEditor.initialize() })
@@ -288,14 +308,14 @@ Panel {
       onCloseRequested: {
         if (deleteConfirm.opened) deleteConfirm.opened = false
         else if (root.showingEditor) root.cancelEditor()
-        else if (root.showingDetails || root.showingSettings) root.backToAgenda()
+        else if (root.showingDetails || root.showingSettings || root.showingHelp) root.backToAgenda()
         else root.close()
       }
       onActivateRequested: {
         if (deleteConfirm.opened) {
           if (deleteConfirm.selectedIndex === 0) deleteConfirm.opened = false
           else root.confirmDelete()
-        } else if (!root.showingDetails && !root.showingSettings && !root.showingEditor) root.activateSelection()
+        } else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp) root.activateSelection()
       }
       onTabRequested: function(direction) {
         if (deleteConfirm.opened) deleteConfirm.selectedIndex = deleteConfirm.selectedIndex === 0 ? 1 : 0
@@ -305,10 +325,15 @@ Panel {
         if (root.showingDetails) root.requestDelete()
       }
       onTextKey: function(text) {
-        if (text === "r" || text === "R") root.refresh()
+        if (text === "?") root.toggleHelp()
+        else if (root.showingHelp) return
+        else if (text === "r" || text === "R") root.refresh()
         else if (text === "/") root.beginSearch()
         else if (text === ",") root.toggleSettings()
-        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && (text === "n" || text === "N")) root.startCreate()
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && text === "N") root.startCreate()
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && text === "n") root.moveSelection(1)
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && (text === "p" || text === "P" || text === "b" || text === "B")) root.moveSelection(-1)
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && (text === "t" || text === "T")) root.selectToday()
         else if (root.showingDetails && (text === "e" || text === "E")) root.startEdit()
         else if (root.showingDetails && (text === "d" || text === "D")) root.requestDelete()
         else if (root.showingDetails && (text === "j" || text === "J")) root.joinEvent()
@@ -328,7 +353,7 @@ Panel {
           Text {
             width: parent.width - headerActions.width
             anchors.verticalCenter: parent.verticalCenter
-            text: root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : "UPCOMING"))
+            text: root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : (root.showingHelp ? "SHORTCUTS" : "UPCOMING")))
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -360,7 +385,7 @@ Panel {
             }
 
             PanelActionButton {
-              visible: !root.showingDetails && !root.showingEditor
+              visible: !root.showingDetails && !root.showingEditor && !root.showingHelp
               iconText: root.showingSettings ? "←" : "󰒓"
               tooltipText: root.showingSettings ? "Back to agenda" : "Calendar settings"
               foreground: root.contentForeground
@@ -369,16 +394,34 @@ Panel {
             }
 
             PanelActionButton {
-              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor
+              visible: root.showingHelp
+              iconText: "←"
+              tooltipText: "Back to agenda"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.toggleHelp()
+            }
+
+            PanelActionButton {
+              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp
+              iconText: "?"
+              tooltipText: "Keyboard shortcuts (?)"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.toggleHelp()
+            }
+
+            PanelActionButton {
+              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp
               iconText: "+"
-              tooltipText: "Create event (N)"
+              tooltipText: "Create event (Shift+N)"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: root.startCreate()
             }
 
             PanelActionButton {
-              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor
+              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp
               iconText: "󰑐"
               tooltipText: root.hostWidget && root.hostWidget.loading ? "Refreshing" : "Refresh agenda"
               foreground: root.contentForeground
@@ -401,7 +444,7 @@ Panel {
 
           TextField {
             id: searchField
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && root.agendaData.status === "ok"
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok"
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
@@ -446,7 +489,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && root.agendaData.status === "unavailable"
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
             width: parent.width - Style.space(24)
             text: "Chroncal is unavailable\nThe agenda will retry automatically."
@@ -458,7 +501,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && root.agendaData.status === "ok" && root.groups.length === 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length === 0
             anchors.centerIn: parent
             text: root.searchQuery !== "" ? "No matching events" : "No upcoming events"
             color: Util.alpha(root.contentForeground, 0.66)
@@ -468,7 +511,7 @@ Panel {
 
           Flickable {
             id: agendaFlick
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && root.agendaData.status === "ok" && root.groups.length > 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length > 0
             anchors.top: searchField.bottom
             anchors.topMargin: Style.space(10)
             anchors.left: parent.left
@@ -567,10 +610,19 @@ Panel {
             includedCalendarIds: root.setting("includedCalendarIds", [])
             showTime: root.setting("showTime", "On")
             showTitle: root.setting("showTitle", "On")
+            relativeLeadMinutes: Number(root.setting("relativeLeadMinutes", 10))
             showAllDay: root.setting("showAllDay", "On")
             showEventsWithoutParticipants: root.setting("showEventsWithoutParticipants", "On")
             showEventsWithoutLocation: root.setting("showEventsWithoutLocation", "On")
             onConfigurationChanged: function(values) { root.persistSettings(values) }
+          }
+
+          ShortcutHelp {
+            visible: root.showingHelp
+            anchors.fill: parent
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+            onCloseRequested: root.toggleHelp()
           }
 
           ConfirmDialog {
