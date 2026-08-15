@@ -90,11 +90,13 @@ Open the agenda and press `,`, or use the settings button. Available settings:
 
 - Days ahead (1–30) and refresh interval.
 - Maximum bar-title length and the relative-countdown window.
-- Included calendars.
+- Included calendars; all are selected automatically until you customize the selection.
 - Show or hide time and title in the bar.
 - Include or exclude all-day events.
 - Include or exclude events without participants.
 - Include or exclude events without a physical location or meeting link.
+
+Calendar selection has two states. Default mode selects every current calendar and automatically includes calendars added later. The first checkbox change stores an exact custom selection; selecting none hides every event. Use **Use default (all calendars)** to discard the custom selection and return to automatic default mode.
 
 Settings persist on the widget entry in `~/.config/omarchy/shell.json`. They can also be changed from the command line:
 
