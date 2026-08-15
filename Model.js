@@ -182,6 +182,26 @@ function filterEvents(events, options) {
   });
 }
 
+function searchEvents(events, query) {
+  var source = events || [];
+  var needle = String(query || "").trim().toLocaleLowerCase();
+  if (needle === "") return source.slice();
+  return source.filter(function(event) {
+    var attendees = event && event.attendees ? event.attendees : [];
+    var participantText = attendees.map(function(attendee) {
+      return String((attendee && attendee.name) || "") + " " + String((attendee && attendee.email) || "");
+    }).join(" ");
+    var haystack = [
+      event && event.title,
+      event && event.description,
+      event && event.location,
+      event && event.calendar_name,
+      participantText
+    ].map(function(value) { return String(value || "").toLocaleLowerCase(); }).join(" ");
+    return haystack.indexOf(needle) !== -1;
+  });
+}
+
 function filterAgenda(agenda, options) {
   if (!agenda) return { status: "unavailable", events: [], next: null };
   var filtered = {};

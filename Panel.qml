@@ -17,7 +17,9 @@ Panel {
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
   readonly property var agendaData: hostWidget ? hostWidget.filteredAgenda : ({ status: "loading", events: [] })
-  readonly property var groups: Model.groupEvents(agendaData.events || [], agendaData.generated_at || new Date().toISOString())
+  property string searchQuery: ""
+  readonly property var visibleEvents: Model.searchEvents(agendaData.events || [], searchQuery)
+  readonly property var groups: Model.groupEvents(visibleEvents, agendaData.generated_at || new Date().toISOString())
   readonly property var calendars: hostWidget ? (hostWidget.agendaData.calendars || []) : []
   property int selectedEventId: -1
   property var selectedEvent: null
@@ -36,6 +38,7 @@ Panel {
   function close() {
     root.selectedEvent = null
     root.selectedEventId = -1
+    root.searchQuery = ""
     root.showingSettings = false
     root.controller.hide()
   }
@@ -81,10 +84,51 @@ Panel {
       root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
-  function showFirstEvent() {
-    var events = agendaData.events || []
-    if (events.length > 0) showEvent(events[0])
+  function selectedEventIndex() {
+    for (var index = 0; index < visibleEvents.length; index += 1)
+      if (Number(visibleEvents[index].id) === Number(selectedEventId)) return index
+    return -1
   }
+
+  function syncSelectionToSearch() {
+    if (visibleEvents.length === 0) {
+      selectedEventId = -1
+      return
+    }
+    if (selectedEventIndex() < 0) selectedEventId = Number(visibleEvents[0].id)
+  }
+
+  function moveSelection(step) {
+    if (showingDetails || showingSettings || visibleEvents.length === 0) return
+    var current = selectedEventIndex()
+    var next = current < 0 ? (step > 0 ? 0 : visibleEvents.length - 1) : Model.clampSelection(current + step, visibleEvents.length)
+    selectedEventId = Number(visibleEvents[next].id)
+  }
+
+  function activateSelection() {
+    if (showingDetails || showingSettings || visibleEvents.length === 0) return
+    var current = selectedEventIndex()
+    showEvent(visibleEvents[current < 0 ? 0 : current])
+  }
+
+  function beginSearch() {
+    if (showingDetails || showingSettings || agendaData.status !== "ok") return
+    Qt.callLater(function() { searchField.forceActiveFocus() })
+  }
+
+  function ensureAgendaItemVisible(item) {
+    if (!item || !agendaFlick.visible) return
+    var point = item.mapToItem(groupsColumn, 0, 0)
+    if (point.y < agendaFlick.contentY) agendaFlick.contentY = point.y
+    else if (point.y + item.height > agendaFlick.contentY + agendaFlick.height)
+      agendaFlick.contentY = Math.min(agendaFlick.contentHeight - agendaFlick.height, point.y + item.height - agendaFlick.height)
+  }
+
+  function showFirstEvent() {
+    activateSelection()
+  }
+
+  onVisibleEventsChanged: syncSelectionToSearch()
 
   function refresh() {
     if (hostWidget && hostWidget.refresh) hostWidget.refresh()
@@ -139,16 +183,21 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      blocked: searchField.activeFocus
+      onMoveRequested: function(dx, dy) {
+        if (!root.showingDetails && !root.showingSettings && dy !== 0) root.moveSelection(dy)
+      }
       onCloseRequested: {
         if (root.showingDetails || root.showingSettings) root.backToAgenda()
         else root.close()
       }
       onActivateRequested: {
-        if (!root.showingDetails && !root.showingSettings) root.showFirstEvent()
+        if (!root.showingDetails && !root.showingSettings) root.activateSelection()
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(text) {
         if (text === "r" || text === "R") root.refresh()
+        else if (text === "/") root.beginSearch()
         else if (text === ",") root.toggleSettings()
         else if (root.showingDetails && (text === "j" || text === "J")) root.joinEvent()
         else if (root.showingDetails && (text === "c" || text === "C")) root.copyEventDetails()
@@ -220,6 +269,52 @@ Panel {
           width: parent.width
           height: parent.height - Style.space(50)
 
+          TextField {
+            id: searchField
+            visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "ok"
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: Style.space(34)
+            text: root.searchQuery
+            placeholderText: "Search events  /"
+            color: root.contentForeground
+            placeholderTextColor: Util.alpha(root.contentForeground, 0.46)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+            leftPadding: Style.space(10)
+            rightPadding: Style.space(10)
+            selectByMouse: true
+            onTextEdited: root.searchQuery = text
+            Keys.onPressed: function(event) {
+              if (event.key === Qt.Key_Escape) {
+                if (text !== "") {
+                  text = ""
+                  root.searchQuery = ""
+                } else {
+                  keyCatcher.forceActiveFocus()
+                }
+                event.accepted = true
+              } else if (event.key === Qt.Key_Down) {
+                root.moveSelection(1)
+                event.accepted = true
+              } else if (event.key === Qt.Key_Up) {
+                root.moveSelection(-1)
+                event.accepted = true
+              } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                root.activateSelection()
+                event.accepted = true
+              }
+            }
+
+            background: Rectangle {
+              radius: Style.cornerRadius
+              color: Util.alpha(root.contentForeground, searchField.activeFocus ? 0.10 : 0.06)
+              border.width: 1
+              border.color: Util.alpha(root.contentForeground, searchField.activeFocus ? 0.28 : 0.12)
+            }
+          }
+
           Text {
             visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
@@ -235,7 +330,7 @@ Panel {
           Text {
             visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "ok" && root.groups.length === 0
             anchors.centerIn: parent
-            text: "No upcoming events"
+            text: root.searchQuery !== "" ? "No matching events" : "No upcoming events"
             color: Util.alpha(root.contentForeground, 0.66)
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.body
@@ -244,7 +339,11 @@ Panel {
           Flickable {
             id: agendaFlick
             visible: !root.showingDetails && !root.showingSettings && root.agendaData.status === "ok" && root.groups.length > 0
-            anchors.fill: parent
+            anchors.top: searchField.bottom
+            anchors.topMargin: Style.space(10)
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
             contentWidth: width
             contentHeight: groupsColumn.implicitHeight
             clip: true
@@ -281,12 +380,16 @@ Panel {
                     model: parent.groupData.events
 
                     EventRow {
+                      id: eventRow
                       required property var modelData
                       width: groupsColumn.width
                       bar: root.bar
                       eventData: modelData
                       nowIso: root.agendaData.generated_at || ""
                       selected: Number(root.selectedEventId) === Number(modelData.id)
+                      onSelectedChanged: {
+                        if (selected) Qt.callLater(function() { root.ensureAgendaItemVisible(eventRow) })
+                      }
                       onActivated: function(eventData) { root.showEvent(eventData) }
                     }
                   }

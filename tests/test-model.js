@@ -61,6 +61,10 @@ const detailedEvent = {
 assert.equal(model.eventOpenUrl(detailedEvent), "https://meet.example.test/room");
 assert.equal(model.eventMapUrl(detailedEvent), "https://www.google.com/maps/search/?api=1&query=Rua%20Exemplo%2010%2C%20Curitiba");
 assert.equal(model.eventMailUrl(detailedEvent), "mailto:alice%40example.test%2Cbob%40example.test");
+assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "launch").map(event => event.id), [1]);
+assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "alice").map(event => event.id), [1]);
+assert.deepEqual(model.searchEvents([{ ...detailedEvent, calendar_name: "Work" }, events[1]], "work").map(event => event.id), [1]);
+assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "  ").map(event => event.id), [1, 2]);
 assert.match(model.attendeeSummary(detailedEvent), /Alice · Accepted/);
 assert.match(model.eventDetailsText(detailedEvent), /Current/);
 assert.match(model.eventDetailsText(detailedEvent), /Discuss launch plan/);
