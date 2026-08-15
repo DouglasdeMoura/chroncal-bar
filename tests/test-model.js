@@ -137,6 +137,20 @@ assert.deepEqual(model.calendarOptions([{ id: 2, name: "Work" }, { id: 1, name: 
   { value: "1", label: "Personal", description: "" },
   { value: "2", label: "Work", description: "" }
 ]);
+const calendarSelectionCalendars = [
+  { id: 1, name: "Personal" },
+  { id: 2, name: "Work" },
+  { id: 3, name: "Family" }
+];
+assert.equal(model.calendarSelectionCustomized({}), false);
+assert.equal(model.calendarSelectionCustomized({ includedCalendarIds: [] }), false);
+assert.equal(model.calendarSelectionCustomized({ includedCalendarIds: ["2"] }), true);
+assert.equal(model.calendarSelectionCustomized({ includedCalendarIds: [], calendarSelectionCustomized: true }), true);
+assert.deepEqual(model.selectedCalendarIds(calendarSelectionCalendars, {}), ["1", "2", "3"]);
+assert.deepEqual(model.selectedCalendarIds(calendarSelectionCalendars, { includedCalendarIds: ["2"] }), ["2"]);
+assert.deepEqual(model.selectedCalendarIds(calendarSelectionCalendars, { includedCalendarIds: [], calendarSelectionCustomized: true }), []);
+assert.deepEqual(model.filterEvents(filterEvents, { includedCalendarIds: [], calendarSelectionCustomized: false }).map(event => event.id), [21, 22, 23]);
+assert.deepEqual(model.filterEvents(filterEvents, { includedCalendarIds: [], calendarSelectionCustomized: true }).map(event => event.id), []);
 
 const presentation = model.barPresentation({
   status: "ok",

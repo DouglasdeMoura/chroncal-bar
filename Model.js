@@ -184,15 +184,29 @@ function optionEnabled(options, key, fallback) {
   return String(options[key]).toLowerCase() !== "off";
 }
 
+function calendarSelectionCustomized(settings) {
+  if (!settings) return false;
+  if (settings.calendarSelectionCustomized !== undefined && settings.calendarSelectionCustomized !== null)
+    return settings.calendarSelectionCustomized === true || String(settings.calendarSelectionCustomized).toLowerCase() === "true";
+  return arrayValues(settings.includedCalendarIds).length > 0;
+}
+
+function selectedCalendarIds(calendars, settings) {
+  if (calendarSelectionCustomized(settings))
+    return arrayValues(settings && settings.includedCalendarIds).map(function(value) { return String(value); });
+  return (calendars || []).map(function(calendar) { return String(calendar.id); });
+}
+
 function filterEvents(events, options) {
   var source = events || [];
   var included = arrayValues(options && options.includedCalendarIds).map(function(value) { return String(value); });
+  var selectionCustomized = calendarSelectionCustomized(options);
   var showAllDay = optionEnabled(options, "showAllDay", true);
   var showWithoutParticipants = optionEnabled(options, "showEventsWithoutParticipants", true);
   var showWithoutLocation = optionEnabled(options, "showEventsWithoutLocation", true);
 
   return source.filter(function(event) {
-    if (included.length > 0 && included.indexOf(String(event.calendar_id)) === -1) return false;
+    if (selectionCustomized && included.indexOf(String(event.calendar_id)) === -1) return false;
     if (!showAllDay && event.all_day === true) return false;
     if (!showWithoutParticipants && (!event.attendees || event.attendees.length === 0)) return false;
     if (!showWithoutLocation && !event.location && !event.conference_url) return false;
