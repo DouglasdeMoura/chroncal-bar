@@ -613,7 +613,8 @@ Panel {
             anchors.fill: parent
             bar: root.bar
             calendars: root.calendars
-            includedCalendarIds: root.setting("includedCalendarIds", [])
+            includedCalendarIds: Model.selectedCalendarIds(root.calendars, root.settings)
+            calendarSelectionCustomized: Model.calendarSelectionCustomized(root.settings)
             showTime: root.setting("showTime", "On")
             showTitle: root.setting("showTitle", "On")
             relativeLeadMinutes: Number(root.setting("relativeLeadMinutes", 10))

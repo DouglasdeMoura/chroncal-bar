@@ -24,7 +24,8 @@ BarWidget {
   readonly property string agendaScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-bar-agenda"))
   readonly property string openUrlScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-open-next-event-url"))
   readonly property var filterOptions: ({
-    includedCalendarIds: root.setting("includedCalendarIds", []),
+    includedCalendarIds: Model.selectedCalendarIds(agendaData.calendars, root.settings),
+    calendarSelectionCustomized: Model.calendarSelectionCustomized(root.settings),
     showAllDay: root.setting("showAllDay", "On"),
     showEventsWithoutParticipants: root.setting("showEventsWithoutParticipants", "On"),
     showEventsWithoutLocation: root.setting("showEventsWithoutLocation", "On")

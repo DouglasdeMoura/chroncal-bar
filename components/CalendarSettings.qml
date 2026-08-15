@@ -10,6 +10,7 @@ Flickable {
   property var bar: null
   property var calendars: []
   property var includedCalendarIds: []
+  property bool calendarSelectionCustomized: false
   property string showTime: "On"
   property string showTitle: "On"
   property int relativeLeadMinutes: 10
@@ -50,11 +51,27 @@ Flickable {
       label: "Included calendars"
       values: root.includedCalendarIds || []
       options: Model.calendarOptions(root.calendars)
-      noSelectionText: "All calendars"
+      noSelectionText: "No calendars"
       placeholderText: "Filter calendars..."
       foreground: root.foreground
       fontFamily: root.fontFamily
-      onChanged: function(values) { root.configurationChanged({ includedCalendarIds: values }) }
+      onChanged: function(values) {
+        root.configurationChanged({
+          includedCalendarIds: values,
+          calendarSelectionCustomized: true
+        })
+      }
+    }
+
+    Button {
+      visible: root.calendarSelectionCustomized
+      text: "Use default (all calendars)"
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onClicked: root.configurationChanged({
+        includedCalendarIds: [],
+        calendarSelectionCustomized: false
+      })
     }
 
     Text {
