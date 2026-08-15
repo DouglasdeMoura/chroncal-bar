@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+today=$(date +%F)
+now=$(date +%s)
+state_dir=${XDG_STATE_HOME:-$HOME/.local/state}
+state_file="$state_dir/chroncal/state.json"
+
+events=$(chroncal event list --from "$today" --to "$today" --output json 2>/dev/null)
+
+if ! calendars=$(chroncal calendar list --output json 2>/dev/null); then
+  calendars='[]'
+fi
+
+if [[ -f "$state_file" ]]; then
+  hidden_calendar_ids=$(jq -c '.hidden_calendars // []' "$state_file" 2>/dev/null || printf '[]')
+else
+  hidden_calendar_ids='[]'
+fi
+
+url=$(jq -r --argjson now "$now" --argjson hidden_calendar_ids "$hidden_calendar_ids" --argjson calendars "$calendars" '
+  def is_visible($event):
+    ($hidden_calendar_ids | index($event.calendar_id)) == null;
+  def first_url($s):
+    (($s // "") | match("https?://[^[:space:]<>\"]+")?.string // "");
+  def calendar_owner_email($id):
+    ((($calendars[]? | select(.id == $id) | .owner_email) // "") | select(. != "")) // "";
+  def google_authuser_host($host):
+    ($host == "meet.google.com") or ($host == "calendar.google.com") or ($host | test("(^|\\.)docs\\.google\\.com$"));
+  def with_google_authuser($url; $email):
+    if $email == "" then $url
+    elif ($url | test("[?&]authuser=")) then $url
+    elif (($url | capture("^https?://(?<host>[^/:?#]+)").host? // "") | google_authuser_host(.)) then
+      $url + (if ($url | contains("?")) then "&" else "?" end) + "authuser=" + ($email | @uri)
+    else $url
+    end;
+  def event_url($event):
+    ($event.url // "") as $url
+    | first_url($event.location) as $location_url
+    | first_url($event.description) as $description_url
+    | calendar_owner_email($event.calendar_id) as $owner_email
+    | if $url != "" then $url
+      elif $location_url != "" then $location_url
+      else $description_url
+      end
+    | with_google_authuser(.; $owner_email);
+
+  [.[] | select(is_visible(.)) | select((.end_time | fromdateiso8601) > $now)]
+  | sort_by(.start_time | fromdateiso8601)
+  | .[0] as $event
+  | if $event == null then "" else event_url($event) end
+' <<<"$events")
+
+if [[ -z "$url" || "$url" == "null" ]]; then
+  notify-send -u low "chroncal" "No link for the next event"
+  exit 0
+fi
+
+xdg-open "$url" >/dev/null 2>&1 &

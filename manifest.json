@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "douglasdemoura.chroncal-bar",
+  "name": "Chroncal Bar",
+  "version": "1.0.0",
+  "author": "Douglas Moura",
+  "license": "MIT",
+  "description": "Shows the next remaining Chroncal event on the Omarchy Quattro bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Chroncal Bar",
+    "description": "Next remaining Chroncal event",
+    "category": "Time",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "schema": [
+      {
+        "key": "interval",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 15,
+        "max": 3600,
+        "step": 15,
+        "defaultValue": 60
+      }
+    ]
+  }
+}
