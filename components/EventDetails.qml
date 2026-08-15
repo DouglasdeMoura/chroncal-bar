@@ -227,7 +227,7 @@ Flickable {
       spacing: Style.space(18)
 
       PanelActionButton {
-        iconText: "󰒃"
+        iconText: "󰏌"
         tooltipText: "Join or open event link"
         foreground: root.foreground
         fontFamily: root.fontFamily
