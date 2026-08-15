@@ -3,52 +3,86 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 BarWidget {
   id: root
   moduleName: "douglasdemoura.chroncal-bar"
 
-  property string outputText: ""
-  property string outputTooltip: ""
+  property var agendaData: ({ status: "loading", events: [] })
+  property bool loading: false
 
   function filePathFromUrl(url) {
-    var s = String(url || "")
-    if (s.indexOf("file://") === 0) s = s.slice(7)
-    try { s = decodeURIComponent(s) } catch (e) {}
-    return s.replace(/\/$/, "")
+    var value = String(url || "")
+    if (value.indexOf("file://") === 0) value = value.slice(7)
+    try { value = decodeURIComponent(value) } catch (error) {}
+    return value.replace(/\/$/, "")
   }
 
-  readonly property string nextEventScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-next-event"))
+  readonly property string agendaScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-bar-agenda"))
   readonly property string openUrlScript: filePathFromUrl(Qt.resolvedUrl("scripts/chroncal-open-next-event-url"))
+  readonly property var presentation: Model.barPresentation(agendaData, Number(setting("maxTitleLength", 42)))
+  readonly property string displayText: presentation.text || "\uf133"
 
   function refresh() {
-    if (!statusProc.running) statusProc.running = true
+    if (agendaProc.running) return
+    loading = true
+    agendaProc.command = [agendaScript, "--days", String(Number(setting("lookaheadDays", 7)))]
+    agendaProc.running = true
   }
 
-  function update(raw) {
-    var data = Util.parseModuleJson(raw)
-    outputText = data.text || ""
-    outputTooltip = data.tooltip || ""
-  }
-
-  function openChroncal() {
-    if (root.bar) root.bar.run("omarchy-launch-floating-terminal-with-presentation chroncal")
+  function updateAgenda(raw) {
+    var parsed = Util.parseModuleJson(raw)
+    agendaData = parsed && parsed.status ? parsed : ({ status: "unavailable", events: [] })
+    loading = false
   }
 
   function openNextEventUrl() {
     if (root.bar) root.bar.run(Util.shellQuote(openUrlScript))
   }
 
-  visible: outputText !== ""
-  implicitWidth: visible ? button.implicitWidth : 0
-  implicitHeight: visible ? button.implicitHeight : 0
+  readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+  readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
+
+  function open() {
+    if (panelLoader.item) panelLoader.item.open()
+  }
+
+  function close() {
+    if (panelLoader.item) panelLoader.item.close()
+  }
+
+  function togglePanel() {
+    if (panelLoader.item) panelLoader.item.toggle()
+  }
+
+  function closeForPopoutSwitch() {
+    if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
+  }
+
+  function injectPanel() {
+    var target = panelLoader.item
+    if (!target) return
+    if ("bar" in target) target.bar = root.bar
+    if ("settings" in target) target.settings = root.settings
+    if ("anchorItem" in target) target.anchorItem = button
+    if ("hostWidget" in target) target.hostWidget = root
+  }
+
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
+  onBarChanged: injectPanel()
+  onSettingsChanged: injectPanel()
 
   Process {
-    id: statusProc
-    command: ["bash", "-lc", Util.shellQuote(root.nextEventScript)]
+    id: agendaProc
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.update(text)
+      onStreamFinished: root.updateAgenda(text)
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.updateAgenda("")
     }
   }
 
@@ -60,26 +94,40 @@ BarWidget {
     onTriggered: root.refresh()
   }
 
+  Loader {
+    id: panelLoader
+    active: true
+    source: Qt.resolvedUrl("Panel.qml")
+    visible: false
+    onLoaded: {
+      root.injectPanel()
+      Qt.callLater(root.injectPanel)
+    }
+  }
+
   IpcHandler {
     target: "douglasdemoura.chroncal-bar"
-    function refresh(): void {
-      root.broadcast("refresh")
-    }
+    function refresh(): void { root.broadcast("refresh") }
+    function open(): void { root.open() }
+    function close(): void { root.close() }
+    function show(): void { root.open() }
+    function hide(): void { root.close() }
+    function toggle(): void { root.togglePanel() }
   }
 
   WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.outputText
-    tooltipText: root.outputTooltip
+    text: root.displayText
+    tooltipText: root.presentation.tooltip || "Open Chroncal agenda"
     active: false
     horizontalMargin: Number(root.setting("horizontalMargin", 7.5))
     fontSize: Number(root.setting("fontSize", 12))
-    onPressed: function(button) {
-      if (button === Qt.MiddleButton) root.openNextEventUrl()
-      else if (button === Qt.RightButton) root.refresh()
-      else root.openChroncal()
+    onPressed: function(buttonCode) {
+      if (buttonCode === Qt.MiddleButton) root.openNextEventUrl()
+      else if (buttonCode === Qt.RightButton) root.refresh()
+      else root.togglePanel()
     }
   }
 }
