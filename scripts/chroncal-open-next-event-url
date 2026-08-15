@@ -30,8 +30,12 @@ url=$(jq -r --argjson now "$now" --argjson hidden_calendar_ids "$hidden_calendar
   def with_google_authuser($url; $email):
     if $email == "" then $url
     elif ($url | test("[?&]authuser=")) then $url
-    elif (($url | capture("^https?://(?<host>[^/:?#]+)").host? // "") | google_authuser_host(.)) then
-      $url + (if ($url | contains("?")) then "&" else "?" end) + "authuser=" + ($email | @uri)
+    elif ($url | test("^https?://[^/:?#]+")) then
+      ($url | capture("^https?://(?<host>[^/:?#]+)").host) as $host
+      | if google_authuser_host($host) then
+          $url + (if ($url | contains("?")) then "&" else "?" end) + "authuser=" + ($email | @uri)
+        else $url
+        end
     else $url
     end;
   def event_url($event):

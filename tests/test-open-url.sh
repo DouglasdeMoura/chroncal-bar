@@ -9,7 +9,7 @@ trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/state/chroncal" "$TMP/fixtures"
 ln -s "$ROOT/tests/fakes/chroncal" "$TMP/bin/chroncal"
 cp "$FIXTURES/calendars.json" "$TMP/fixtures/calendars.json"
-jq 'map(select(.uid != "ended"))' "$FIXTURES/events.json" >"$TMP/fixtures/events.json"
+jq 'map(select(.uid != "ended") | if .uid == "standup" then .conference_uri = "zoommtg://zoom.us/join?confno=123" else . end)' "$FIXTURES/events.json" >"$TMP/fixtures/events.json"
 cp "$FIXTURES/state/chroncal/state.json" "$TMP/state/chroncal/state.json"
 cat >"$TMP/bin/xdg-open" <<'EOF'
 #!/usr/bin/env bash
@@ -33,5 +33,5 @@ for _ in $(seq 1 50); do
   sleep 0.02
 done
 
-test "$(cat "$CHRONCAL_OPEN_LOG")" = "https://meet.example.test/standup"
+test "$(cat "$CHRONCAL_OPEN_LOG")" = "zoommtg://zoom.us/join?confno=123"
 printf 'next event URL tests: ok\n'
