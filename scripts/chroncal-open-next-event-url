@@ -35,11 +35,13 @@ url=$(jq -r --argjson now "$now" --argjson hidden_calendar_ids "$hidden_calendar
     else $url
     end;
   def event_url($event):
-    ($event.url // "") as $url
+    ($event.conference_uri // "") as $conference_url
+    | ($event.url // "") as $url
     | first_url($event.location) as $location_url
     | first_url($event.description) as $description_url
     | calendar_owner_email($event.calendar_id) as $owner_email
-    | if $url != "" then $url
+    | if $conference_url != "" then $conference_url
+      elif $url != "" then $url
       elif $location_url != "" then $location_url
       else $description_url
       end

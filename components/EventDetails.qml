@@ -23,6 +23,7 @@ Flickable {
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property bool canMutate: Model.canMutateEvent(eventData)
 
   contentWidth: width
   contentHeight: detailsColumn.implicitHeight
@@ -202,6 +203,17 @@ Flickable {
     }
 
     Text {
+      visible: !root.canMutate
+      width: parent.width
+      text: "Edit this recurring series in Chroncal. This generated occurrence has no separate identity."
+      textFormat: Text.PlainText
+      color: Util.alpha(root.foreground, 0.62)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      wrapMode: Text.WordWrap
+    }
+
+    Text {
       text: "QUICK ACTIONS"
       color: Util.alpha(root.foreground, 0.52)
       font.family: root.fontFamily
@@ -264,21 +276,21 @@ Flickable {
 
       PanelActionButton {
         iconText: "󰏫"
-        tooltipText: "Edit event"
+        tooltipText: root.canMutate ? "Edit event" : "Edit the recurring series in Chroncal"
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
-        enabled: !root.busy
+        enabled: !root.busy && root.canMutate
         onClicked: root.editRequested()
       }
 
       PanelActionButton {
         iconText: "󰆴"
-        tooltipText: "Delete event"
+        tooltipText: root.canMutate ? "Delete event" : "Delete the recurring series in Chroncal"
         foreground: Color.urgent
         fontFamily: root.fontFamily
         focusable: true
-        enabled: !root.busy
+        enabled: !root.busy && root.canMutate
         onClicked: root.deleteRequested()
       }
     }

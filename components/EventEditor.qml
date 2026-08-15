@@ -28,6 +28,7 @@ Flickable {
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var validationErrors: Model.validateEventForm(values())
+  readonly property bool canEditTime: editorMode !== "edit" || !eventData || String(eventData.timezone || "") === ""
 
   signal canceled()
   signal submitted(var values)
@@ -142,6 +143,7 @@ Flickable {
         FormField {
           width: parent.width
           text: root.dateValue
+          enabled: root.canEditTime
           placeholderText: "YYYY-MM-DD"
           inputMethodHints: Qt.ImhDate
           onTextEdited: root.dateValue = text
@@ -156,6 +158,7 @@ Flickable {
         FormField {
           width: parent.width
           text: root.timeValue
+          enabled: root.canEditTime
           placeholderText: "HH:MM"
           inputMethodHints: Qt.ImhTime
           onTextEdited: root.timeValue = text
@@ -170,10 +173,22 @@ Flickable {
         FormField {
           width: parent.width
           text: root.durationValue
+          enabled: root.canEditTime
           placeholderText: "1h"
           onTextEdited: root.durationValue = text
         }
       }
+    }
+
+    Text {
+      visible: root.editorMode === "edit" && !root.canEditTime
+      width: parent.width
+      text: "Open Chroncal to change this event’s time in " + String(root.eventData ? root.eventData.timezone : "its timezone") + "."
+      textFormat: Text.PlainText
+      color: Util.alpha(root.foreground, 0.56)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      wrapMode: Text.WordWrap
     }
 
     Toggle {

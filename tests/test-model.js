@@ -87,20 +87,39 @@ const createValues = {
 };
 assert.deepEqual(model.validateEventForm(createValues), []);
 assert.deepEqual(model.eventMutationArgs("create", null, createValues), [
-  "event", "add", "Review launch", "--date", "2026-08-18", "--calendar", "Work",
-  "--time", "14:30", "--duration", "45m", "--location", "Room 4", "--description", "Decide launch date"
+  "event", "add", "--date", "2026-08-18", "--calendar", "Work",
+  "--time", "14:30", "--duration", "45m", "--location", "Room 4", "--description", "Decide launch date",
+  "--", "Review launch"
 ]);
-assert.deepEqual(model.eventMutationArgs("edit", { id: 42, all_day: false }, createValues).slice(0, 5), [
-  "event", "update", "42", "--title", "Review launch"
-]);
+const existingEditEvent = {
+  id: 42,
+  uid: "single-uid",
+  title: "Review launch",
+  start_time: "2026-08-18T14:30:00Z",
+  end_time: "2026-08-18T15:15:00Z",
+  all_day: false,
+  timezone: "America/New_York",
+  calendar_name: "Work",
+  location: "Room 4",
+  description: "Decide launch date"
+};
+const unchangedEditArgs = model.eventMutationArgs("edit", existingEditEvent, createValues);
+assert.deepEqual(unchangedEditArgs, ["event", "update", "42", "--title", "Review launch"]);
+assert.deepEqual(model.eventMutationArgs("edit", existingEditEvent, { ...createValues, time: "15:30" }), []);
 assert.deepEqual(model.eventDeleteArgs({ id: 42 }), ["event", "delete", "42", "--yes"]);
 assert.deepEqual(model.eventDeleteArgs({ id: 42, uid: "weekly-uid", recurrence_id: "2026-08-18T14:30:00Z" }), [
   "event", "delete", "weekly-uid", "--recurrence-id", "2026-08-18T14:30:00Z", "--yes"
 ]);
+assert.equal(model.canMutateEvent({ id: 42, recurrence_rule: "FREQ=WEEKLY", recurrence_id: "" }), false);
+assert.equal(model.canMutateEvent({ id: 42, recurrence_rule: "FREQ=WEEKLY", recurrence_id: "2026-08-18T14:30:00Z" }), true);
+assert.equal(model.canMutateEvent({ id: 42, recurrence_rule: "" }), true);
+assert.deepEqual(model.eventMutationArgs("edit", { id: 42, recurrence_rule: "FREQ=WEEKLY" }, createValues), []);
+assert.deepEqual(model.eventDeleteArgs({ id: 42, recurrence_rule: "FREQ=WEEKLY" }), []);
 assert.match(model.validateEventForm({ ...createValues, title: "" })[0], /title/i);
 assert.match(model.validateEventForm({ ...createValues, duration: "" })[0], /duration/i);
-const clearOptionalArgs = model.eventMutationArgs("edit", { id: 42, all_day: false }, { ...createValues, location: "", description: "" });
+const clearOptionalArgs = model.eventMutationArgs("edit", { ...existingEditEvent, location: "Old room", description: "Old notes" }, { ...createValues, location: "", description: "" });
 assert.deepEqual(clearOptionalArgs.slice(-4), ["--location", "", "--description", ""]);
+assert.notEqual(model.eventKey({ id: 42, uid: "weekly", start_time: "2026-08-18T14:30:00Z" }), model.eventKey({ id: 42, uid: "weekly", start_time: "2026-08-25T14:30:00Z" }));
 
 const filterEvents = [
   { ...detailedEvent, id: 21, calendar_id: 1, all_day: false },

@@ -24,14 +24,16 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Opens meeting links, maps, participant email, and Chroncal.
 - Copies complete event details to the clipboard.
 - Creates, edits, and deletes Chroncal events without shell interpolation.
+- Preserves omitted fields during edits and never reinterprets unchanged event times.
 - Confirms deletion before changing Chroncal data.
+- Sends generated recurring occurrences to Chroncal instead of mutating the full series accidentally.
 
-This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence authoring, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
+This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence authoring, generated occurrence mutations, timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 
 ## Requirements
 
 - Omarchy Quattro
-- `chroncal` on `PATH`
+- Chroncal 0.7.3 or newer on `PATH`
 - `bash`, `jq`, GNU `date`, and GNU `timeout`
 - `xdg-open` for links and maps
 - `wl-copy` for copy actions
@@ -40,7 +42,7 @@ This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence a
 Install Chroncal with mise if needed:
 
 ```sh
-mise use -g github:DouglasdeMoura/chroncal@0.7.0
+mise use -g github:DouglasdeMoura/chroncal@0.7.3
 ```
 
 Authenticate and configure calendars in the Chroncal TUI before expecting events on the bar:
@@ -130,6 +132,7 @@ Removal deletes only the plugin. It does not remove Chroncal, calendar state, or
 ```sh
 TZ=UTC bun tests/test-model.js
 tests/test-agenda.sh
+tests/test-open-url.sh
 bash -n scripts/chroncal-exec scripts/chroncal-bar-agenda scripts/chroncal-next-event scripts/chroncal-open-next-event-url
 omarchy plugin validate .
 /usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell \

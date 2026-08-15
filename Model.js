@@ -105,6 +105,13 @@ function firstEventIndexForDate(events, nowValue) {
   return -1;
 }
 
+function eventKey(event) {
+  if (!event) return "";
+  var identity = String(event.uid || event.id || "");
+  var occurrence = String(event.recurrence_id || event.start_time || "");
+  return identity + "|" + occurrence;
+}
+
 function escapeHtml(value) {
   return String(value === undefined || value === null ? "" : value)
     .replace(/&/g, "&amp;")
@@ -352,6 +359,11 @@ function validateEventForm(values) {
   return errors;
 }
 
+function canMutateEvent(event) {
+  if (!event) return false;
+  return String(event.recurrence_rule || "") === "" || String(event.recurrence_id || "") !== "";
+}
+
 function eventMutationTargetArgs(event) {
   if (event && event.recurrence_id && event.uid)
     return [String(event.uid), "--recurrence-id", String(event.recurrence_id)];
@@ -365,30 +377,44 @@ function pushOptionalFlag(args, flag, value) {
 
 function eventMutationArgs(mode, event, values) {
   var errors = validateEventForm(values);
-  if (errors.length > 0) return [];
+  if (errors.length > 0 || (mode === "edit" && !canMutateEvent(event))) return [];
   var form = values || {};
   var title = String(form.title || "").trim();
   var args;
   if (mode === "edit") {
+    var original = eventEditorValues(event);
+    if ((form.allDay === true) !== (original.allDay === true)) return [];
+    var dateChanged = String(form.date) !== String(original.date);
+    var timeChanged = String(form.time) !== String(original.time);
+    var durationChanged = String(form.duration) !== String(original.duration);
+    if (String(event.timezone || "") !== "" && (dateChanged || timeChanged || durationChanged)) return [];
     args = ["event", "update"].concat(eventMutationTargetArgs(event));
     args.push("--title", title);
-  } else {
-    args = ["event", "add", title];
+    if (dateChanged) args.push("--date", String(form.date));
+    if (String(form.calendar || "") !== String(original.calendar || ""))
+      pushOptionalFlag(args, "--calendar", form.calendar);
+    if (form.allDay !== true) {
+      if (timeChanged) args.push("--time", String(form.time));
+      if (durationChanged) args.push("--duration", String(form.duration));
+    }
+    if (String(form.location || "") !== String(original.location || ""))
+      args.push("--location", String(form.location || ""));
+    if (String(form.description || "") !== String(original.description || ""))
+      args.push("--description", String(form.description || ""));
+    return args;
   }
-  args.push("--date", String(form.date));
+
+  args = ["event", "add", "--date", String(form.date)];
   pushOptionalFlag(args, "--calendar", form.calendar);
   if (form.allDay !== true) args.push("--time", String(form.time), "--duration", String(form.duration));
-  if (mode === "edit") {
-    args.push("--location", String(form.location || ""));
-    args.push("--description", String(form.description || ""));
-  } else {
-    pushOptionalFlag(args, "--location", form.location);
-    pushOptionalFlag(args, "--description", form.description);
-  }
+  pushOptionalFlag(args, "--location", form.location);
+  pushOptionalFlag(args, "--description", form.description);
+  args.push("--", title);
   return args;
 }
 
 function eventDeleteArgs(event) {
+  if (!canMutateEvent(event)) return [];
   return ["event", "delete"].concat(eventMutationTargetArgs(event)).concat(["--yes"]);
 }
 

@@ -22,7 +22,7 @@ Panel {
   readonly property var visibleEvents: Model.searchEvents(agendaData.events || [], searchQuery)
   readonly property var groups: Model.groupEvents(visibleEvents, agendaData.generated_at || new Date().toISOString())
   readonly property var calendars: hostWidget ? (hostWidget.agendaData.calendars || []) : []
-  property int selectedEventId: -1
+  property string selectedEventKey: ""
   property var selectedEvent: null
   property string editorMode: ""
   readonly property bool showingEditor: editorMode !== ""
@@ -46,7 +46,7 @@ Panel {
 
   function close() {
     root.selectedEvent = null
-    root.selectedEventId = -1
+    root.selectedEventKey = ""
     root.searchQuery = ""
     root.editorMode = ""
     root.showingSettings = false
@@ -67,7 +67,7 @@ Panel {
   }
 
   function showEvent(eventData) {
-    selectedEventId = Number(eventData.id)
+    selectedEventKey = Model.eventKey(eventData)
     selectedEvent = eventData
     editorMode = ""
     showingSettings = false
@@ -105,23 +105,23 @@ Panel {
 
   function selectedEventIndex() {
     for (var index = 0; index < visibleEvents.length; index += 1)
-      if (Number(visibleEvents[index].id) === Number(selectedEventId)) return index
+      if (Model.eventKey(visibleEvents[index]) === selectedEventKey) return index
     return -1
   }
 
   function syncSelectionToSearch() {
     if (visibleEvents.length === 0) {
-      selectedEventId = -1
+      selectedEventKey = ""
       return
     }
-    if (selectedEventIndex() < 0) selectedEventId = Number(visibleEvents[0].id)
+    if (selectedEventIndex() < 0) selectedEventKey = Model.eventKey(visibleEvents[0])
   }
 
   function moveSelection(step) {
     if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
     var current = selectedEventIndex()
     var next = current < 0 ? (step > 0 ? 0 : visibleEvents.length - 1) : Model.clampSelection(current + step, visibleEvents.length)
-    selectedEventId = Number(visibleEvents[next].id)
+    selectedEventKey = Model.eventKey(visibleEvents[next])
   }
 
   function activateSelection() {
@@ -149,7 +149,7 @@ Panel {
 
   function selectToday() {
     var index = Model.firstEventIndexForDate(visibleEvents, agendaData.generated_at || new Date().toISOString())
-    if (index >= 0) selectedEventId = Number(visibleEvents[index].id)
+    if (index >= 0) selectedEventKey = Model.eventKey(visibleEvents[index])
   }
 
   function toggleHelp() {
@@ -175,7 +175,7 @@ Panel {
   }
 
   function startEdit() {
-    if (!selectedEvent) return
+    if (!selectedEvent || !Model.canMutateEvent(selectedEvent)) return
     showingSettings = false
     showingHelp = false
     mutationError = ""
@@ -201,7 +201,7 @@ Panel {
   }
 
   function requestDelete() {
-    if (!selectedEvent || mutationBusy) return
+    if (!selectedEvent || mutationBusy || !Model.canMutateEvent(selectedEvent)) return
     deleteConfirm.selectedIndex = 1
     deleteConfirm.opened = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -209,7 +209,9 @@ Panel {
 
   function confirmDelete() {
     deleteConfirm.opened = false
-    runMutation(Model.eventDeleteArgs(selectedEvent), "delete")
+    var args = Model.eventDeleteArgs(selectedEvent)
+    if (args.length === 0) return
+    runMutation(args, "delete")
   }
 
   function runMutation(args, kind) {
@@ -234,7 +236,7 @@ Panel {
     var completed = mutationKind
     editorMode = ""
     selectedEvent = null
-    selectedEventId = -1
+    selectedEventKey = ""
     actionStatus = completed === "delete" ? "Event deleted" : (completed === "edit" ? "Event updated" : "Event created")
     actionStatusTimer.restart()
     refresh()
@@ -559,7 +561,7 @@ Panel {
                       bar: root.bar
                       eventData: modelData
                       nowIso: root.agendaData.generated_at || ""
-                      selected: Number(root.selectedEventId) === Number(modelData.id)
+                      selected: root.selectedEventKey === Model.eventKey(modelData)
                       onSelectedChanged: {
                         if (selected) Qt.callLater(function() { root.ensureAgendaItemVisible(eventRow) })
                       }

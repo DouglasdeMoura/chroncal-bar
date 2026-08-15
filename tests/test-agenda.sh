@@ -30,6 +30,7 @@ jq -e '
   and (.events[2].recurrence_id == "2026-08-15T14:00:00Z")
   and (.events[2].calendar_color == "#888888")
   and (.events[3].all_day == true)
+  and (.events[2].recurrence_rule == "FREQ=WEEKLY;BYDAY=SA")
   and (.calendars | map(select(.hidden == true).id)) == [2]
 ' <<<"$output" >/dev/null
 

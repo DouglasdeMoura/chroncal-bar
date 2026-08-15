@@ -76,6 +76,7 @@ if ! jq -cn \
         id,
         uid,
         recurrence_id: (.recurrence_id // ""),
+        recurrence_rule: (.recurrence_rule // ""),
         calendar_id,
         calendar_name: ($calendar.name // "Calendar"),
         calendar_color: fallback_color($calendar.color),
@@ -92,7 +93,7 @@ if ! jq -cn \
         location: (.location // ""),
         geo: (.geo // ""),
         url: (.url // ""),
-        conference_url: (.conference_url // ""),
+        conference_url: (.conference_uri // ""),
         attendees: ((.attendees // []) | map({
           name: (.name // ""),
           email: (.email // ""),
