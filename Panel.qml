@@ -19,6 +19,9 @@ Panel {
   readonly property var agendaData: hostWidget ? hostWidget.agendaData : ({ status: "loading", events: [] })
   readonly property var groups: Model.groupEvents(agendaData.events || [], agendaData.generated_at || new Date().toISOString())
   property int selectedEventId: -1
+  property var selectedEvent: null
+  readonly property bool showingDetails: selectedEvent !== null
+  property string actionStatus: ""
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
@@ -29,6 +32,8 @@ Panel {
   }
 
   function close() {
+    root.selectedEvent = null
+    root.selectedEventId = -1
     root.controller.hide()
   }
 
@@ -43,12 +48,61 @@ Panel {
     return false
   }
 
-  function selectEvent(eventData) {
+  function showEvent(eventData) {
     selectedEventId = Number(eventData.id)
+    selectedEvent = eventData
+    actionStatus = ""
+  }
+
+  function backToAgenda() {
+    selectedEvent = null
+    actionStatus = ""
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function showFirstEvent() {
+    var events = agendaData.events || []
+    if (events.length > 0) showEvent(events[0])
   }
 
   function refresh() {
     if (hostWidget && hostWidget.refresh) hostWidget.refresh()
+  }
+
+  function openUrl(url) {
+    if (!url) return
+    Quickshell.execDetached(["xdg-open", String(url)])
+  }
+
+  function joinEvent() {
+    openUrl(Model.eventOpenUrl(selectedEvent))
+  }
+
+  function openMap() {
+    openUrl(Model.eventMapUrl(selectedEvent))
+  }
+
+  function emailParticipants() {
+    openUrl(Model.eventMailUrl(selectedEvent))
+  }
+
+  function copyEventDetails() {
+    var details = Model.eventDetailsText(selectedEvent)
+    if (!details) return
+    Quickshell.execDetached(["wl-copy", details])
+    actionStatus = "Copied event details"
+    actionStatusTimer.restart()
+  }
+
+  function openChroncal() {
+    Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "chroncal"])
+    root.close()
+  }
+
+  Timer {
+    id: actionStatusTimer
+    interval: 2000
+    onTriggered: root.actionStatus = ""
   }
 
   KeyboardPanel {
@@ -64,10 +118,19 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      onCloseRequested: root.close()
+      onCloseRequested: {
+        if (root.showingDetails) root.backToAgenda()
+        else root.close()
+      }
+      onActivateRequested: {
+        if (!root.showingDetails) root.showFirstEvent()
+      }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(text) {
         if (text === "r" || text === "R") root.refresh()
+        else if (root.showingDetails && (text === "j" || text === "J")) root.joinEvent()
+        else if (root.showingDetails && (text === "c" || text === "C")) root.copyEventDetails()
+        else if (root.showingDetails && (text === "o" || text === "O")) root.openChroncal()
       }
 
       Column {
@@ -82,7 +145,7 @@ Panel {
           Text {
             width: parent.width - refreshLabel.width
             anchors.verticalCenter: parent.verticalCenter
-            text: "UPCOMING"
+            text: root.showingDetails ? "EVENT DETAILS" : "UPCOMING"
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -93,7 +156,7 @@ Panel {
           Text {
             id: refreshLabel
             anchors.verticalCenter: parent.verticalCenter
-            text: root.hostWidget && root.hostWidget.loading ? "Refreshing…" : "R  Refresh"
+            text: root.showingDetails ? "ESC  Back" : (root.hostWidget && root.hostWidget.loading ? "Refreshing…" : "R  Refresh")
             color: Util.alpha(root.contentForeground, 0.58)
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -111,7 +174,7 @@ Panel {
           height: parent.height - Style.space(50)
 
           Text {
-            visible: root.agendaData.status === "unavailable"
+            visible: !root.showingDetails && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
             width: parent.width - Style.space(24)
             text: "Chroncal is unavailable\nThe agenda will retry automatically."
@@ -123,7 +186,7 @@ Panel {
           }
 
           Text {
-            visible: root.agendaData.status === "ok" && root.groups.length === 0
+            visible: !root.showingDetails && root.agendaData.status === "ok" && root.groups.length === 0
             anchors.centerIn: parent
             text: "No upcoming events"
             color: Util.alpha(root.contentForeground, 0.66)
@@ -133,7 +196,7 @@ Panel {
 
           Flickable {
             id: agendaFlick
-            visible: root.agendaData.status === "ok" && root.groups.length > 0
+            visible: !root.showingDetails && root.agendaData.status === "ok" && root.groups.length > 0
             anchors.fill: parent
             contentWidth: width
             contentHeight: groupsColumn.implicitHeight
@@ -177,12 +240,26 @@ Panel {
                       eventData: modelData
                       nowIso: root.agendaData.generated_at || ""
                       selected: Number(root.selectedEventId) === Number(modelData.id)
-                      onActivated: function(eventData) { root.selectEvent(eventData) }
+                      onActivated: function(eventData) { root.showEvent(eventData) }
                     }
                   }
                 }
               }
             }
+          }
+
+          EventDetails {
+            visible: root.showingDetails
+            anchors.fill: parent
+            bar: root.bar
+            eventData: root.selectedEvent || ({})
+            actionStatus: root.actionStatus
+            onBackRequested: root.backToAgenda()
+            onJoinRequested: root.joinEvent()
+            onMapRequested: root.openMap()
+            onEmailRequested: root.emailParticipants()
+            onCopyRequested: root.copyEventDetails()
+            onChroncalRequested: root.openChroncal()
           }
         }
       }

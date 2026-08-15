@@ -47,6 +47,25 @@ assert.equal(model.clampSelection(-1, 3), 0);
 assert.equal(model.clampSelection(4, 3), 2);
 assert.equal(model.clampSelection(0, 0), -1);
 
+const detailedEvent = {
+  ...events[0],
+  description: "Discuss launch plan",
+  location: "Rua Exemplo 10, Curitiba",
+  conference_url: "https://meet.example.test/room",
+  url: "https://calendar.example.test/event/1",
+  attendees: [
+    { name: "Alice", email: "alice@example.test", rsvp_status: "ACCEPTED" },
+    { name: "Bob", email: "bob@example.test", rsvp_status: "TENTATIVE" }
+  ]
+};
+assert.equal(model.eventOpenUrl(detailedEvent), "https://meet.example.test/room");
+assert.equal(model.eventMapUrl(detailedEvent), "https://www.google.com/maps/search/?api=1&query=Rua%20Exemplo%2010%2C%20Curitiba");
+assert.equal(model.eventMailUrl(detailedEvent), "mailto:alice%40example.test%2Cbob%40example.test");
+assert.match(model.attendeeSummary(detailedEvent), /Alice · Accepted/);
+assert.match(model.eventDetailsText(detailedEvent), /Current/);
+assert.match(model.eventDetailsText(detailedEvent), /Discuss launch plan/);
+assert.match(model.eventDetailsText(detailedEvent), /alice@example.test/);
+
 const presentation = model.barPresentation({
   status: "ok",
   generated_at: "2026-08-15T12:00:00Z",

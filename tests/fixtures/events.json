@@ -39,7 +39,25 @@
     "transp": "OPAQUE",
     "timezone": "UTC",
     "class": "PUBLIC",
-    "updated_at": "2026-08-15T11:00:00Z"
+    "updated_at": "2026-08-15T11:00:00Z",
+    "description": "Discuss launch plan",
+    "location": "Rua Exemplo 10, Curitiba",
+    "url": "https://calendar.example.test/event/12",
+    "conference_url": "https://meet.example.test/standup",
+    "attendees": [
+      {
+        "name": "Alice",
+        "email": "alice@example.test",
+        "rsvp_status": "ACCEPTED",
+        "role": "REQ-PARTICIPANT"
+      },
+      {
+        "name": "Bob",
+        "email": "bob@example.test",
+        "rsvp_status": "TENTATIVE",
+        "role": "OPT-PARTICIPANT"
+      }
+    ]
   },
   {
     "id": 13,

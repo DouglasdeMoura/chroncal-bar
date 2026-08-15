@@ -88,6 +88,17 @@ if ! jq -cn \
         transp: (.transp // "OPAQUE"),
         timezone: (.timezone // ""),
         class: (.class // "PUBLIC"),
+        description: (.description // ""),
+        location: (.location // ""),
+        geo: (.geo // ""),
+        url: (.url // ""),
+        conference_url: (.conference_url // ""),
+        attendees: ((.attendees // []) | map({
+          name: (.name // ""),
+          email: (.email // ""),
+          rsvp_status: (.rsvp_status // "NEEDS-ACTION"),
+          role: (.role // "REQ-PARTICIPANT")
+        })),
         updated_at: (.updated_at // "")
       };
 

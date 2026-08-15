@@ -189,3 +189,49 @@ function barPresentation(agenda, maximumTitleLength) {
     tooltip: tooltip
   };
 }
+
+function eventOpenUrl(event) {
+  if (!event) return "";
+  return String(event.conference_url || event.url || "");
+}
+
+function eventMapUrl(event) {
+  var location = event ? String(event.location || "") : "";
+  return location === "" ? "" : "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(location);
+}
+
+function eventMailUrl(event) {
+  var attendees = event && event.attendees ? event.attendees : [];
+  var emails = attendees.map(function(attendee) { return String(attendee.email || ""); })
+    .filter(function(email) { return email !== ""; });
+  return emails.length === 0 ? "" : "mailto:" + encodeURIComponent(emails.join(","));
+}
+
+function humanRsvp(value) {
+  var normalized = String(value || "").toLowerCase();
+  return normalized === "" ? "No response" : normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function attendeeSummary(event) {
+  var attendees = event && event.attendees ? event.attendees : [];
+  return attendees.map(function(attendee) {
+    var identity = String(attendee.name || attendee.email || "Guest");
+    return identity + " · " + humanRsvp(attendee.rsvp_status);
+  }).join("\n");
+}
+
+function eventDetailsText(event) {
+  if (!event) return "";
+  var lines = [String(event.title || "Untitled"), formatEventRange(event)];
+  if (event.calendar_name) lines.push(String(event.calendar_name));
+  if (event.location) lines.push(String(event.location));
+  if (event.description) lines.push(String(event.description));
+  var attendees = event.attendees || [];
+  attendees.forEach(function(attendee) {
+    var identity = String(attendee.name || attendee.email || "Guest");
+    var email = attendee.email && attendee.name ? " <" + attendee.email + ">" : "";
+    lines.push(identity + email + " · " + humanRsvp(attendee.rsvp_status));
+  });
+  if (event.url) lines.push(String(event.url));
+  return lines.join("\n");
+}
