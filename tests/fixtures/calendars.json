@@ -1,0 +1,5 @@
+[
+  {"id": 1, "name": "Work", "color": "#ff3366", "owner_email": "work@example.com", "is_default": true},
+  {"id": 2, "name": "Hidden", "color": "#33aa55", "owner_email": "hidden@example.com", "is_default": false},
+  {"id": 3, "name": "Personal", "color": "", "owner_email": "me@example.com", "is_default": false}
+]

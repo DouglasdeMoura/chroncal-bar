@@ -5,36 +5,20 @@
 # --watch keeps the old Waybar loop (emit, sleep until the next minute).
 set -uo pipefail
 
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
 unavailable() {
   printf '{"text":"","class":"unavailable","tooltip":"chroncal unavailable"}\n'
 }
 
 render() {
-  local today now state_dir state_file events calendars hidden_calendar_ids
-  today=$(date +%F)
-  now=$(date +%s)
-  state_dir=${XDG_STATE_HOME:-$HOME/.local/state}
-  state_file="$state_dir/chroncal/state.json"
-
-  # Cap each chroncal call: a hung invocation (e.g. SQLite lock held during a
-  # sync) must not freeze the bar. On timeout the call exits non-zero and we
-  # self-heal on the next tick instead of stalling.
-  if ! events=$(timeout 10 chroncal event list --from "$today" --to "$today" --output json 2>/dev/null); then
+  local agenda
+  if ! agenda=$("$script_dir/chroncal-bar-agenda" --days 1); then
     unavailable
     return
   fi
 
-  if ! calendars=$(timeout 10 chroncal calendar list --output json 2>/dev/null); then
-    calendars='[]'
-  fi
-
-  if [[ -f "$state_file" ]]; then
-    hidden_calendar_ids=$(jq -c '.hidden_calendars // []' "$state_file" 2>/dev/null || printf '[]')
-  else
-    hidden_calendar_ids='[]'
-  fi
-
-  jq -c --argjson now "$now" --argjson calendars "$calendars" --argjson hidden_calendar_ids "$hidden_calendar_ids" '
+  jq -c '
     def trunc($n):
       tostring as $s
       | if ($s | length) > $n then ($s[0:($n - 3)] + "...") else $s end;
@@ -46,13 +30,8 @@ render() {
       | gsub("\""; "&quot;");
     def html($s): "<span>" + $s + "</span>";
     def hm: fromdateiso8601 | strflocaltime("%H:%M");
-    def calendar_color($id):
-      ((($calendars[]? | select(.id == $id) | .color) // "#888888")
-        | select(. != "")) // "#888888";
     def color_block($event):
-      "<font color=\"\(calendar_color($event.calendar_id))\">■</font>";
-    def is_visible($event):
-      ($hidden_calendar_ids | index($event.calendar_id)) == null;
+      "<font color=\"\($event.calendar_color // "#888888")\">■</font>";
     def event_line($event):
       if $event.all_day then
         "\(color_block($event))  All day · \($event.title | esc)"
@@ -68,7 +47,7 @@ render() {
         else
           "\($mins)m"
         end;
-    def event_label_time($start; $end; $start_time):
+    def event_label_time($start; $end; $start_time; $now):
       if $start > $now then
         if ($start - $now) <= 600 then "in \(duration_label($start - $now))" else ($start_time | hm) end
       elif ($now - $start) < 60 then
@@ -77,62 +56,56 @@ render() {
         "\(duration_label($end - $now)) left"
       end;
 
-    ([.[] | select(is_visible(.) and ((.end_time | fromdateiso8601) > $now))] | sort_by(.start_time | fromdateiso8601)) as $events
-    | ($events
-      | if length == 0 then "No events today" else (map(event_line(.)) | join("<br>")) end) as $tooltip
-    | ([$events[] | select((.end_time | fromdateiso8601) > $now)]
-      | sort_by(.start_time | fromdateiso8601)
-      | .[0]) as $event
-    | if $event == null then
-        {text: "", class: "empty", tooltip: html($tooltip)}
-      elif $event.all_day then
-        {
-          text: html(" All day · " + ($event.title | trunc(42) | esc) + " "),
-          class: "all-day",
-          tooltip: html($tooltip)
-        }
-      else
-        # Anchor = soonest unfinished event. Gather the cluster of timed events
-        # whose [start, end) overlaps the anchor (half-open, app convention).
-        # All-day events are excluded: they span the whole day and would
-        # falsely "overlap" everything.
-        $event as $anchor
-        | ($anchor.start_time | fromdateiso8601) as $astart
-        | ($anchor.end_time | fromdateiso8601) as $aend
-        # Do not emit class "active": Omarchy command widgets paint that with
-        # the urgent/red color. Keep a distinct in-progress class for tooltips.
-        | (if $astart <= $now and $aend > $now then "in-progress" else "upcoming" end) as $base_class
-        | event_label_time($astart; $aend; $anchor.start_time) as $lead
-        | ([$events[]
-             | select((.all_day | not)
-                 and ((.start_time | fromdateiso8601) < $aend)
-                 and ($astart < (.end_time | fromdateiso8601)))]) as $cluster
-        | if ($cluster | length) <= 1 then
-            {
-              text: html(" " + ($lead + " · " + ($anchor.title | trunc(42) | esc)) + " "),
-              class: $base_class,
-              tooltip: html($tooltip)
-            }
-          else
-            # Overlap: one shared time label, then each concurrent event as a
-            # color-coded "■ Title". Cap at 3 with a +N overflow so a busy day
-            # cannot overflow the bar.
-            ($cluster | length) as $n
-            | ($cluster[0:3]
-                | map(
-                    (.start_time | fromdateiso8601) as $s
-                    | (.end_time | fromdateiso8601) as $e
-                    | color_block(.) + " " + event_label_time($s; $e; .start_time) + " · " + (.title | trunc(18) | esc))
-                | join(" | ")) as $body
-            | (if $n > 3 then " +\($n - 3)" else "" end) as $more
-            | {
-                text: html(" " + $body + $more + " "),
-                class: [$base_class, "overlap"],
+    if .status != "ok" then
+      {text: "", class: "unavailable", tooltip: "chroncal unavailable"}
+    else
+      (.generated_at | fromdateiso8601) as $now
+      | .events as $events
+      | ($events
+          | if length == 0 then "No events today" else (map(event_line(.)) | join("<br>")) end) as $tooltip
+      | ($events[0] // null) as $event
+      | if $event == null then
+          {text: "", class: "empty", tooltip: html($tooltip)}
+        elif $event.all_day then
+          {
+            text: html(" All day · " + ($event.title | trunc(42) | esc) + " "),
+            class: "all-day",
+            tooltip: html($tooltip)
+          }
+        else
+          $event as $anchor
+          | ($anchor.start_time | fromdateiso8601) as $astart
+          | ($anchor.end_time | fromdateiso8601) as $aend
+          | (if $astart <= $now and $aend > $now then "in-progress" else "upcoming" end) as $base_class
+          | event_label_time($astart; $aend; $anchor.start_time; $now) as $lead
+          | ([$events[]
+               | select((.all_day | not)
+                   and ((.start_time | fromdateiso8601) < $aend)
+                   and ($astart < (.end_time | fromdateiso8601)))]) as $cluster
+          | if ($cluster | length) <= 1 then
+              {
+                text: html(" " + ($lead + " · " + ($anchor.title | trunc(42) | esc)) + " "),
+                class: $base_class,
                 tooltip: html($tooltip)
               }
-          end
-      end
-  ' <<<"$events" || unavailable
+            else
+              ($cluster | length) as $n
+              | ($cluster[0:3]
+                  | map(
+                      (.start_time | fromdateiso8601) as $start
+                      | (.end_time | fromdateiso8601) as $end
+                      | color_block(.) + " " + event_label_time($start; $end; .start_time; $now) + " · " + (.title | trunc(18) | esc))
+                  | join(" | ")) as $body
+              | (if $n > 3 then " +\($n - 3)" else "" end) as $more
+              | {
+                  text: html(" " + $body + $more + " "),
+                  class: [$base_class, "overlap"],
+                  tooltip: html($tooltip)
+                }
+            end
+        end
+    end
+  ' <<<"$agenda" || unavailable
 }
 
 if [[ "${1:-}" == "--watch" ]]; then

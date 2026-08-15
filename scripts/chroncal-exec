@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -n ${CHRONCAL_BIN:-} ]]; then
+  exec "$CHRONCAL_BIN" "$@"
+fi
+
+if command -v chroncal >/dev/null 2>&1; then
+  exec chroncal "$@"
+fi
+
+if command -v mise >/dev/null 2>&1; then
+  exec mise exec -- chroncal "$@"
+fi
+
+printf 'chroncal executable not found\n' >&2
+exit 127

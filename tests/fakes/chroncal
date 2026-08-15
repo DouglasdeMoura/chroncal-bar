@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fixtures=${CHRONCAL_FAKE_FIXTURES:?CHRONCAL_FAKE_FIXTURES is required}
+if [[ -n ${CHRONCAL_FAKE_LOG:-} ]]; then
+  printf '%s\n' "$*" >>"$CHRONCAL_FAKE_LOG"
+fi
+if [[ ${CHRONCAL_FAKE_FAIL:-0} == 1 ]]; then
+  exit 1
+fi
+
+case "${1:-} ${2:-}" in
+  "event list") cat "$fixtures/events.json" ;;
+  "calendar list") cat "$fixtures/calendars.json" ;;
+  *) printf 'unexpected fake chroncal command: %s\n' "$*" >&2; exit 64 ;;
+esac

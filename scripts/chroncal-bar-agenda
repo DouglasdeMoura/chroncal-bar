@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+days=1
+
+while (( $# > 0 )); do
+  case "$1" in
+    --days)
+      [[ ${2:-} =~ ^[0-9]+$ ]] || { printf '%s\n' '--days requires a positive integer' >&2; exit 64; }
+      days=$2
+      shift 2
+      ;;
+    *)
+      printf 'unknown argument: %s\n' "$1" >&2
+      exit 64
+      ;;
+  esac
+done
+
+(( days >= 1 && days <= 31 )) || { printf '%s\n' '--days must be between 1 and 31' >&2; exit 64; }
+
+unavailable() {
+  printf '{"generated_at":"%s","status":"unavailable","range":{"from":"%s","to":"%s"},"calendars":[],"events":[],"next":null}\n' \
+    "$generated_at" "$from_date" "$to_date"
+}
+
+now_input=${CHRONCAL_BAR_NOW:-$(date --iso-8601=seconds)}
+if [[ $now_input =~ ^[0-9]+$ ]]; then
+  now_epoch=$now_input
+else
+  now_epoch=$(date -d "$now_input" +%s 2>/dev/null) || {
+    printf 'invalid CHRONCAL_BAR_NOW: %s\n' "$now_input" >&2
+    exit 64
+  }
+fi
+
+generated_at=$(date -u -d "@$now_epoch" +%Y-%m-%dT%H:%M:%SZ)
+from_date=$(date -d "@$now_epoch" +%F)
+to_date=$(date -d "$from_date + $((days - 1)) days" +%F)
+state_dir=${XDG_STATE_HOME:-$HOME/.local/state}
+chroncal_state="$state_dir/chroncal/state.json"
+runner=${CHRONCAL_BIN:-$script_dir/chroncal-exec}
+
+if ! events=$(timeout 10 "$runner" event list --from "$from_date" --to "$to_date" --output json 2>/dev/null); then
+  unavailable
+  exit 0
+fi
+
+if ! calendars=$(timeout 10 "$runner" calendar list --output json 2>/dev/null); then
+  calendars='[]'
+fi
+
+if [[ -f $chroncal_state ]]; then
+  hidden_calendar_ids=$(jq -c '.hidden_calendars // []' "$chroncal_state" 2>/dev/null || printf '[]')
+else
+  hidden_calendar_ids='[]'
+fi
+
+if ! jq -cn \
+  --arg generated_at "$generated_at" \
+  --arg from "$from_date" \
+  --arg to "$to_date" \
+  --argjson now "$now_epoch" \
+  --argjson events "$events" \
+  --argjson calendars "$calendars" \
+  --argjson hidden_calendar_ids "$hidden_calendar_ids" '
+  def calendar_for($id):
+    (first($calendars[]? | select(.id == $id)) // {});
+  def fallback_color($value):
+    if ($value // "") == "" then "#888888" else $value end;
+  def normalized_event:
+    . as $event
+    | calendar_for(.calendar_id) as $calendar
+    | {
+        id,
+        uid,
+        recurrence_id: (.recurrence_id // ""),
+        calendar_id,
+        calendar_name: ($calendar.name // "Calendar"),
+        calendar_color: fallback_color($calendar.color),
+        calendar_owner_email: ($calendar.owner_email // ""),
+        title: (.title // "Untitled"),
+        start_time,
+        end_time,
+        all_day: (.all_day == true),
+        status: (.status // "CONFIRMED"),
+        transp: (.transp // "OPAQUE"),
+        timezone: (.timezone // ""),
+        class: (.class // "PUBLIC"),
+        updated_at: (.updated_at // "")
+      };
+
+  ([
+    $events[]?
+    | . as $event
+    | select(($hidden_calendar_ids | index($event.calendar_id)) == null)
+    | select((.status // "CONFIRMED") != "CANCELLED")
+    | select((.end_time | fromdateiso8601) > $now)
+    | normalized_event
+  ] | sort_by(.start_time | fromdateiso8601)) as $visible_events
+  | {
+      generated_at: $generated_at,
+      status: "ok",
+      range: {from: $from, to: $to},
+      calendars: [
+        $calendars[]?
+        | . as $calendar
+        | {
+            id,
+            name: (.name // "Calendar"),
+            color: fallback_color(.color),
+            owner_email: (.owner_email // ""),
+            is_default: (.is_default == true),
+            hidden: (($hidden_calendar_ids | index($calendar.id)) != null)
+          }
+      ],
+      events: $visible_events,
+      next: ($visible_events[0] // null)
+    }
+' ; then
+  unavailable
+fi
