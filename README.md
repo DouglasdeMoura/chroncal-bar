@@ -2,6 +2,8 @@
 
 An [Omarchy Quattro](https://omarchy.org/) bar widget that shows the next remaining event from [Chroncal](https://github.com/DouglasdeMoura/chroncal).
 
+![Chroncal Bar showing an upcoming event in the Omarchy bar](preview.png)
+
 ## Features
 
 - Shows the next visible event that has not ended.
