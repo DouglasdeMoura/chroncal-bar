@@ -54,6 +54,7 @@ Flickable {
         width: parent.width - Style.space(38)
         anchors.verticalCenter: parent.verticalCenter
         text: root.eventData.title || "Untitled"
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.title
@@ -89,6 +90,7 @@ Flickable {
         Text {
           width: parent.width
           text: Model.formatEventRange(root.eventData)
+          textFormat: Text.PlainText
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -98,6 +100,7 @@ Flickable {
         Text {
           width: parent.width
           text: root.eventData.calendar_name || "Calendar"
+          textFormat: Text.PlainText
           color: Util.alpha(root.foreground, 0.62)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -110,6 +113,7 @@ Flickable {
       visible: Model.eventAttributes(root.eventData) !== ""
       width: parent.width
       text: Model.eventAttributes(root.eventData)
+      textFormat: Text.PlainText
       color: Util.alpha(root.foreground, 0.54)
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -133,6 +137,7 @@ Flickable {
       Text {
         width: parent.width
         text: root.eventData.location || ""
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -157,6 +162,7 @@ Flickable {
       Text {
         width: parent.width
         text: root.eventData.description || ""
+        textFormat: Text.PlainText
         color: Util.alpha(root.foreground, 0.82)
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -181,6 +187,7 @@ Flickable {
       Text {
         width: parent.width
         text: Model.attendeeSummary(root.eventData)
+        textFormat: Text.PlainText
         color: Util.alpha(root.foreground, 0.82)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -279,6 +286,7 @@ Flickable {
     Text {
       visible: root.actionStatus !== ""
       text: root.actionStatus
+      textFormat: Text.PlainText
       color: Util.alpha(root.foreground, 0.62)
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption

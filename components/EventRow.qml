@@ -44,6 +44,7 @@ Item {
     Text {
       width: parent.width
       text: root.eventData.title || "Untitled"
+      textFormat: Text.PlainText
       color: root.foreground
       font.family: root.bar ? root.bar.fontFamily : Style.font.family
       font.pixelSize: Style.font.body
@@ -54,6 +55,7 @@ Item {
     Text {
       width: parent.width
       text: Model.formatEventRange(root.eventData) + "  ·  " + (root.eventData.calendar_name || "Calendar")
+      textFormat: Text.PlainText
       color: Util.alpha(root.foreground, 0.62)
       font.family: root.bar ? root.bar.fontFamily : Style.font.family
       font.pixelSize: Style.font.caption
