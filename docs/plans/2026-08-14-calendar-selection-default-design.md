@@ -14,7 +14,7 @@ The widget keeps the existing `includedCalendarIds` array and adds `calendarSele
 
 ## Interface
 
-The Included calendars `MultiSelect` receives the effective selection: all calendar IDs in default mode, or the persisted IDs in custom mode. Its empty label becomes `No calendars`.
+The Included calendars `MultiSelect` receives the effective selection through an external `Binding`, so its internal checkbox mutations cannot detach it from later resets or calendar refreshes: all calendar IDs in default mode, or the persisted IDs in custom mode. Its empty label becomes `No calendars`.
 
 The first checkbox change enters custom mode and persists the exact selected IDs. While custom mode is active, Settings shows a `Use default (all calendars)` action. Activating it clears the stored IDs, disables custom mode, and immediately restores every current calendar.
 

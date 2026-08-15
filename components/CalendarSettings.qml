@@ -47,9 +47,9 @@ Flickable {
     }
 
     MultiSelect {
+      id: calendarSelect
       width: parent.width
       label: "Included calendars"
-      values: root.includedCalendarIds || []
       options: Model.calendarOptions(root.calendars)
       noSelectionText: "No calendars"
       placeholderText: "Filter calendars..."
@@ -61,6 +61,12 @@ Flickable {
           calendarSelectionCustomized: true
         })
       }
+    }
+
+    Binding {
+      target: calendarSelect
+      property: "values"
+      value: root.includedCalendarIds || []
     }
 
     Button {

@@ -83,7 +83,7 @@ Add `property bool calendarSelectionCustomized: false`.
 
 **Step 2: Persist exact checkbox changes**
 
-Keep `values` bound to the effective selected IDs. On change, emit both `includedCalendarIds: values` and `calendarSelectionCustomized: true`.
+Keep `values` synchronized to the effective selected IDs with an external `Binding`; `MultiSelect.toggleValue()` assigns its own property and would otherwise detach an inline binding. On change, emit both `includedCalendarIds: values` and `calendarSelectionCustomized: true`.
 
 **Step 3: Distinguish empty selection**
 
