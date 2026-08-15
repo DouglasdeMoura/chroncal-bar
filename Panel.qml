@@ -94,6 +94,8 @@ Panel {
   }
 
   function persistSettings(values) {
+    var refreshAgenda = "lookaheadDays" in values
+      && Number(values.lookaheadDays) !== Number(root.setting("lookaheadDays", 7))
     var entry = { id: root.moduleName }
     for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
     for (var key in values) entry[key] = values[key]
@@ -101,6 +103,8 @@ Panel {
     if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
     if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
       root.bar.shell.updateEntryInline(root.moduleName, entry)
+    if (refreshAgenda && root.hostWidget && typeof root.hostWidget.refresh === "function")
+      Qt.callLater(function() { root.hostWidget.refresh() })
   }
 
   function selectedEventIndex() {
@@ -613,6 +617,7 @@ Panel {
             showTime: root.setting("showTime", "On")
             showTitle: root.setting("showTitle", "On")
             relativeLeadMinutes: Number(root.setting("relativeLeadMinutes", 10))
+            lookaheadDays: Number(root.setting("lookaheadDays", 7))
             showAllDay: root.setting("showAllDay", "On")
             showEventsWithoutParticipants: root.setting("showEventsWithoutParticipants", "On")
             showEventsWithoutLocation: root.setting("showEventsWithoutLocation", "On")

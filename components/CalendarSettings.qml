@@ -13,6 +13,7 @@ Flickable {
   property string showTime: "On"
   property string showTitle: "On"
   property int relativeLeadMinutes: 10
+  property int lookaheadDays: 7
   property string showAllDay: "On"
   property string showEventsWithoutParticipants: "On"
   property string showEventsWithoutLocation: "On"
@@ -104,6 +105,18 @@ Flickable {
       font.pixelSize: Style.font.caption
       font.bold: true
       font.letterSpacing: 1
+    }
+
+    NumberField {
+      width: parent.width
+      label: "Days ahead"
+      value: root.lookaheadDays
+      from: 1
+      to: 30
+      stepSize: 1
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onModified: function(value) { root.configurationChanged({ lookaheadDays: value }) }
     }
 
     Toggle {

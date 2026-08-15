@@ -11,6 +11,7 @@ BarWidget {
 
   property var agendaData: ({ status: "loading", events: [] })
   property bool loading: false
+  property bool refreshPending: false
 
   function filePathFromUrl(url) {
     var value = String(url || "")
@@ -41,7 +42,11 @@ BarWidget {
   readonly property string displayText: presentation.text || "\uf133"
 
   function refresh() {
-    if (agendaProc.running) return
+    if (agendaProc.running) {
+      refreshPending = true
+      return
+    }
+    refreshPending = false
     loading = true
     agendaProc.command = [agendaScript, "--days", String(Number(root.setting("lookaheadDays", 7)))]
     agendaProc.running = true
@@ -99,6 +104,7 @@ BarWidget {
     }
     onExited: function(exitCode) {
       if (exitCode !== 0) root.updateAgenda("")
+      if (root.refreshPending) Qt.callLater(function() { root.refresh() })
     }
   }
 
@@ -136,7 +142,7 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: root.displayText
-    tooltipText: root.presentation.tooltip || "Open Chroncal agenda"
+    tooltipText: ""
     active: false
     horizontalMargin: Number(root.setting("horizontalMargin", 7.5))
     fontSize: Number(root.setting("fontSize", 12))
