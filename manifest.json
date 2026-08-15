@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "douglasdemoura.chroncal-bar",
   "name": "Chroncal Bar",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": "Douglas Moura",
   "license": "MIT",
   "description": "Chroncal menu-bar agenda, search, quick actions, and event editing for Omarchy Quattro.",

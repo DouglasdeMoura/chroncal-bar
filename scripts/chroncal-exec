@@ -5,12 +5,14 @@ if [[ -n ${CHRONCAL_BIN:-} ]]; then
   exec "$CHRONCAL_BIN" "$@"
 fi
 
-if command -v chroncal >/dev/null 2>&1; then
-  exec chroncal "$@"
+if command -v mise >/dev/null 2>&1; then
+  if chroncal_path=$(mise which chroncal 2>/dev/null); then
+    exec "$chroncal_path" "$@"
+  fi
 fi
 
-if command -v mise >/dev/null 2>&1; then
-  exec mise exec -- chroncal "$@"
+if command -v chroncal >/dev/null 2>&1; then
+  exec chroncal "$@"
 fi
 
 printf 'chroncal executable not found\n' >&2
