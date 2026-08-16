@@ -56,8 +56,7 @@ Panel {
   function close() {
     root.selectedEvent = null
     root.selectedEventKey = ""
-    root.searchQuery = ""
-    root.searching = false
+    root.resetSearch()
     root.editorMode = ""
     root.showingSettings = false
     root.showingHelp = false
@@ -154,10 +153,14 @@ Panel {
     Qt.callLater(function() { searchField.forceActiveFocus() })
   }
 
-  function endSearch() {
+  function resetSearch() {
     searching = false
     searchQuery = ""
     searchField.text = ""
+  }
+
+  function endSearch() {
+    resetSearch()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 

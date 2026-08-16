@@ -85,7 +85,7 @@ The second command is optional. It places the widget beside the tray in the righ
 | `Ctrl+Enter` | Event editor | Save event or series |
 | `Esc` | Any panel view | Back, cancel, or close |
 
-Mouse users can access the same actions through the header and event-detail buttons.
+Search opens with `/`. Mouse users can access the other actions through the header and event-detail buttons.
 
 ## Configure
 
