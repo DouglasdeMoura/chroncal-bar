@@ -26,9 +26,12 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Creates, edits, and deletes Chroncal events without shell interpolation.
 - Preserves omitted fields during edits and never reinterprets unchanged event times.
 - Confirms deletion before changing Chroncal data.
-- Sends generated recurring occurrences to Chroncal instead of mutating the full series accidentally.
+- Shows an enabled edit pencil for every event with a usable identity.
+- Loads and edits the whole recurring series for generated occurrences.
+- Edits stored recurrence overrides as that override only.
+- Keeps generated-occurrence deletion in Chroncal.
 
-This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence authoring, generated occurrence mutations, timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
+This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence authoring, generated-occurrence deletion, timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 
 ## Requirements
 
@@ -74,12 +77,12 @@ The second command is optional. It places the widget beside the tray in the righ
 | `R` | Agenda | Refresh |
 | `,` | Agenda | Open settings |
 | `?` | Agenda | Open shortcut help |
-| `E` | Event details | Edit event |
+| `E` | Event details | Edit event or recurring series |
 | `D` or `X` | Event details | Delete with confirmation |
 | `J` | Event details | Join or open event URL |
 | `C` | Event details | Copy event details |
 | `O` | Event details | Open Chroncal |
-| `Ctrl+Enter` | Event editor | Save event |
+| `Ctrl+Enter` | Event editor | Save event or series |
 | `Esc` | Any panel view | Back, cancel, or close |
 
 Mouse users can access the same actions through the header and event-detail buttons.

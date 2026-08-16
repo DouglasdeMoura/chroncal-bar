@@ -11,6 +11,7 @@ Flickable {
   property var bar: null
   property string editorMode: "create"
   property var eventData: null
+  property bool editingSeries: false
   property var calendars: []
   property bool busy: false
   property string externalError: ""
@@ -121,6 +122,44 @@ Flickable {
     id: form
     width: root.width
     spacing: Style.space(8)
+
+    Rectangle {
+      visible: root.editorMode === "edit" && root.editingSeries
+      width: parent.width
+      implicitHeight: seriesWarning.implicitHeight + Style.space(20)
+      radius: Style.cornerRadius
+      color: Util.alpha(root.foreground, 0.06)
+
+      Column {
+        id: seriesWarning
+        anchors.left: parent.left
+        anchors.leftMargin: Style.space(14)
+        anchors.right: parent.right
+        anchors.rightMargin: Style.space(12)
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(5)
+
+        Text {
+          width: parent.width
+          text: "Editing entire recurring series"
+          textFormat: Text.PlainText
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
+
+        Text {
+          width: parent.width
+          text: "Changes apply to every occurrence."
+          textFormat: Text.PlainText
+          color: Util.alpha(root.foreground, 0.62)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
+        }
+      }
+    }
 
     FieldLabel { text: "TITLE" }
     FormField {
@@ -264,7 +303,7 @@ Flickable {
       }
 
       Button {
-        text: root.busy ? "Saving…" : (root.editorMode === "edit" ? "Save" : "Create")
+        text: root.busy ? "Saving…" : (root.editorMode === "edit" ? (root.editingSeries ? "Save series" : "Save") : "Create")
         enabled: !root.busy
         onClicked: root.submit()
       }

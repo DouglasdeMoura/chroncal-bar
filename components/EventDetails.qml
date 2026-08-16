@@ -23,6 +23,8 @@ Flickable {
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property bool canEdit: Model.canEditEvent(eventData)
+  readonly property bool generatedRecurring: Model.isGeneratedRecurringEvent(eventData)
   readonly property bool canMutate: Model.canMutateEvent(eventData)
 
   contentWidth: width
@@ -203,9 +205,9 @@ Flickable {
     }
 
     Text {
-      visible: !root.canMutate
+      visible: root.generatedRecurring
       width: parent.width
-      text: "Edit this recurring series in Chroncal. This generated occurrence has no separate identity."
+      text: "The pencil edits this entire recurring series. Delete individual occurrences in Chroncal."
       textFormat: Text.PlainText
       color: Util.alpha(root.foreground, 0.62)
       font.family: root.fontFamily
@@ -232,7 +234,7 @@ Flickable {
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
-        enabled: Model.eventOpenUrl(root.eventData) !== ""
+        enabled: Model.eventOpenUrl(root.eventData) !== "" && !root.busy
         onClicked: root.joinRequested()
       }
 
@@ -242,7 +244,7 @@ Flickable {
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
-        enabled: Model.eventMapUrl(root.eventData) !== ""
+        enabled: Model.eventMapUrl(root.eventData) !== "" && !root.busy
         onClicked: root.mapRequested()
       }
 
@@ -252,7 +254,7 @@ Flickable {
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
-        enabled: Model.eventMailUrl(root.eventData) !== ""
+        enabled: Model.eventMailUrl(root.eventData) !== "" && !root.busy
         onClicked: root.emailRequested()
       }
 
@@ -262,6 +264,7 @@ Flickable {
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
+        enabled: !root.busy
         onClicked: root.copyRequested()
       }
 
@@ -271,16 +274,17 @@ Flickable {
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
+        enabled: !root.busy
         onClicked: root.chroncalRequested()
       }
 
       PanelActionButton {
         iconText: "󰏫"
-        tooltipText: root.canMutate ? "Edit event" : "Edit the recurring series in Chroncal"
+        tooltipText: root.generatedRecurring ? "Edit recurring series" : "Edit event"
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
-        enabled: !root.busy && root.canMutate
+        enabled: !root.busy && root.canEdit
         onClicked: root.editRequested()
       }
 
@@ -290,7 +294,7 @@ Flickable {
         foreground: Color.urgent
         fontFamily: root.fontFamily
         focusable: true
-        enabled: !root.busy && root.canMutate
+        enabled: root.canMutate && !root.busy
         onClicked: root.deleteRequested()
       }
     }

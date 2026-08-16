@@ -288,7 +288,7 @@ Panel {
   }
 
   function requestDelete() {
-    if (!selectedEvent || mutationBusy || !Model.canMutateEvent(selectedEvent)) return
+    if (!selectedEvent || mutationBusy || editLoadBusy || !Model.canMutateEvent(selectedEvent)) return
     deleteConfirm.selectedIndex = 1
     deleteConfirm.opened = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -337,18 +337,22 @@ Panel {
   }
 
   function joinEvent() {
+    if (mutationBusy || editLoadBusy) return
     openUrl(Model.eventOpenUrl(selectedEvent))
   }
 
   function openMap() {
+    if (mutationBusy || editLoadBusy) return
     openUrl(Model.eventMapUrl(selectedEvent))
   }
 
   function emailParticipants() {
+    if (mutationBusy || editLoadBusy) return
     openUrl(Model.eventMailUrl(selectedEvent))
   }
 
   function copyEventDetails() {
+    if (mutationBusy || editLoadBusy) return
     var details = Model.eventDetailsText(selectedEvent)
     if (!details) return
     Quickshell.execDetached(["wl-copy", details])
@@ -357,6 +361,7 @@ Panel {
   }
 
   function openChroncal() {
+    if (mutationBusy || editLoadBusy) return
     Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "chroncal"])
     root.close()
   }
