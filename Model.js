@@ -315,7 +315,65 @@ function dateInputValue(value, allDay) {
   if (allDay && String(value || "").length >= 10) return String(value).slice(0, 10);
   var date = parseDate(value);
   if (!date) return "";
+  return formatDateInput(date);
+}
+
+function parseDateInput(value) {
+  var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+  var year = Number(match[1]);
+  var month = Number(match[2]) - 1;
+  var day = Number(match[3]);
+  var date = new Date(year, month, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
+  return date;
+}
+
+function formatDateInput(date) {
+  if (!date || isNaN(date.getTime())) return "";
   return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
+}
+
+function stepMonth(year, month, delta) {
+  var target = new Date(Number(year), Number(month) + Number(delta), 1);
+  return { year: target.getFullYear(), month: target.getMonth() };
+}
+
+function shiftDateInput(value, days) {
+  var date = parseDateInput(value);
+  if (!date) return "";
+  date.setDate(date.getDate() + Number(days));
+  return formatDateInput(date);
+}
+
+function weekdayOrder(weekStart) {
+  var start = ((Number(weekStart) % 7) + 7) % 7;
+  var days = [];
+  for (var index = 0; index < 7; index += 1) days.push((start + index) % 7);
+  return days;
+}
+
+function monthGrid(year, month, weekStart, todayKey, selectedKey) {
+  var start = ((Number(weekStart) % 7) + 7) % 7;
+  var leading = (new Date(year, month, 1).getDay() - start + 7) % 7;
+  var cursor = new Date(year, month, 1 - leading);
+  var weeks = [];
+  for (var week = 0; week < 6; week += 1) {
+    var days = [];
+    for (var index = 0; index < 7; index += 1) {
+      var key = formatDateInput(cursor);
+      days.push({
+        key: key,
+        day: cursor.getDate(),
+        inMonth: cursor.getMonth() === month && cursor.getFullYear() === year,
+        today: key === String(todayKey || ""),
+        selected: key === String(selectedKey || "")
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    weeks.push(days);
+  }
+  return weeks;
 }
 
 function timeInputValue(value) {

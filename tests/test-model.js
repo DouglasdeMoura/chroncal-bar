@@ -122,6 +122,31 @@ const clearOptionalArgs = model.eventMutationArgs("edit", { ...existingEditEvent
 assert.deepEqual(clearOptionalArgs.slice(-4), ["--location", "", "--description", ""]);
 assert.notEqual(model.eventKey({ id: 42, uid: "weekly", start_time: "2026-08-18T14:30:00Z" }), model.eventKey({ id: 42, uid: "weekly", start_time: "2026-08-25T14:30:00Z" }));
 
+assert.equal(model.parseDateInput(""), null);
+assert.equal(model.parseDateInput("2026-8-18"), null);
+assert.equal(model.parseDateInput("2026-02-29"), null);
+assert.equal(model.parseDateInput("2026-13-01"), null);
+const parsedDate = model.parseDateInput("2026-08-18");
+assert.equal(parsedDate.getFullYear(), 2026);
+assert.equal(parsedDate.getMonth(), 7);
+assert.equal(parsedDate.getDate(), 18);
+assert.equal(model.formatDateInput(parsedDate), "2026-08-18");
+assert.deepEqual(model.stepMonth(2026, 11, 1), { year: 2027, month: 0 });
+assert.deepEqual(model.stepMonth(2026, 0, -1), { year: 2025, month: 11 });
+assert.equal(model.shiftDateInput("2026-08-31", 1), "2026-09-01");
+assert.equal(model.shiftDateInput("bad", 1), "");
+assert.deepEqual(model.weekdayOrder(1), [1, 2, 3, 4, 5, 6, 0]);
+const augustGrid = model.monthGrid(2026, 7, 1, "2026-08-16", "2026-08-18");
+assert.equal(augustGrid.length, 6);
+assert.equal(augustGrid[0][0].key, "2026-07-27");
+assert.equal(augustGrid[0][0].inMonth, false);
+assert.equal(augustGrid[0][5].key, "2026-08-01");
+assert.equal(augustGrid[0][5].inMonth, true);
+assert.equal(augustGrid[2][6].key, "2026-08-16");
+assert.equal(augustGrid[2][6].today, true);
+assert.equal(augustGrid[3][1].key, "2026-08-18");
+assert.equal(augustGrid[3][1].selected, true);
+
 assert.equal(model.eventReference(null), "");
 assert.equal(model.eventReference({}), "");
 assert.equal(model.eventReference({ id: "", uid: "" }), "");
