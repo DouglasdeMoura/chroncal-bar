@@ -193,7 +193,7 @@ Flickable {
     Text {
       visible: root.recurring
       width: parent.width
-      text: root.generatedRecurring ? "The pencil edits this entire recurring series. The trash can remove this occurrence or the whole series." : "The trash can remove this occurrence or the whole series."
+      text: root.generatedRecurring ? "The pencil edits this entire recurring series. The trash can remove this event, this and following, or all events." : "The trash can remove this event, this and following, or all events."
       textFormat: Text.PlainText
       color: Util.alpha(root.foreground, 0.62)
       font.family: root.fontFamily
@@ -276,7 +276,7 @@ Flickable {
 
       PanelActionButton {
         iconText: "󰆴"
-        tooltipText: root.recurring ? "Delete occurrence or series" : "Delete event"
+        tooltipText: root.recurring ? "Delete this event, this and following, or all events" : "Delete event"
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true

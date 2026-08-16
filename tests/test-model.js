@@ -239,25 +239,27 @@ assert.equal(model.isRecurringEvent({ id: 42, rdates: "2026-08-18T14:30:00Z" }),
 assert.equal(model.isRecurringEvent(overrideEditEvent), true);
 assert.equal(model.canDeleteEvent(generatedOccurrence), true);
 assert.equal(model.canDeleteEvent({}), false);
-assert.deepEqual(model.parseExdates(""), []);
-assert.deepEqual(model.parseExdates("2026-08-18T14:30:00Z,2026-08-25T14:30:00Z"), ["2026-08-18T14:30:00Z", "2026-08-25T14:30:00Z"]);
-assert.deepEqual(model.parseExdates("2026-08-18T14:30:00Z, 2026-08-18T14:30:00Z"), ["2026-08-18T14:30:00Z"]);
+assert.equal(model.eventOccurrenceStamp(generatedOccurrence), "2026-08-25T14:30:00Z");
+assert.equal(model.eventOccurrenceStamp(overrideEditEvent), "2026-08-18T14:30:00Z");
 assert.deepEqual(model.eventDeleteArgs(generatedOccurrence), []);
 assert.deepEqual(model.eventDeleteArgs(generatedOccurrence, { series: true }), ["event", "delete", "weekly-uid", "--series", "--yes"]);
 assert.deepEqual(model.eventDeleteArgs({ id: 42, recurrence_rule: "FREQ=WEEKLY" }, { series: true }), ["event", "delete", "42", "--series", "--yes"]);
 assert.deepEqual(model.eventDeleteArgs(overrideEditEvent, { series: true }), ["event", "delete", "weekly-uid", "--series", "--yes"]);
-assert.deepEqual(model.eventDeleteArgs(generatedOccurrence, { occurrence: true }), ["event", "update", "42", "--exdate", "2026-08-25T14:30:00Z"]);
-assert.deepEqual(model.eventDeleteArgs(generatedOccurrence, { occurrence: true, exdates: "2026-08-18T14:30:00Z" }), [
-  "event", "update", "42", "--exdate", "2026-08-18T14:30:00Z", "--exdate", "2026-08-25T14:30:00Z"
+assert.deepEqual(model.eventDeleteArgs(generatedOccurrence, { thisEvent: true }), [
+  "event", "delete", "weekly-uid", "--recurrence-id", "2026-08-25T14:30:00Z", "--yes"
 ]);
-assert.deepEqual(model.eventDeleteArgs(generatedOccurrence, { occurrence: true, exdates: "2026-08-25T14:30:00Z" }), [
-  "event", "update", "42", "--exdate", "2026-08-25T14:30:00Z"
+assert.deepEqual(model.eventDeleteArgs(generatedOccurrence, { following: true }), [
+  "event", "delete", "weekly-uid", "--following", "2026-08-25T14:30:00Z", "--yes"
 ]);
-assert.deepEqual(model.eventDeleteArgs(overrideEditEvent, { occurrence: true }), [
+assert.deepEqual(model.eventDeleteArgs(overrideEditEvent, { thisEvent: true }), [
   "event", "delete", "weekly-uid", "--recurrence-id", "2026-08-18T14:30:00Z", "--yes"
 ]);
-assert.deepEqual(model.eventDeleteArgs(generatedOccurrence, { series: true, occurrence: true }), []);
-assert.deepEqual(model.eventDeleteArgs({ id: 42, recurrence_rule: "FREQ=WEEKLY", start_time: "" }, { occurrence: true }), []);
+assert.deepEqual(model.eventDeleteArgs(overrideEditEvent, { following: true }), [
+  "event", "delete", "weekly-uid", "--following", "2026-08-18T14:30:00Z", "--yes"
+]);
+assert.deepEqual(model.eventDeleteArgs(generatedOccurrence, { series: true, thisEvent: true }), []);
+assert.deepEqual(model.eventDeleteArgs(generatedOccurrence, { thisEvent: true, following: true }), []);
+assert.deepEqual(model.eventDeleteArgs({ id: 42, recurrence_rule: "FREQ=WEEKLY", start_time: "" }, { thisEvent: true }), []);
 
 const filterEvents = [
   { ...detailedEvent, id: 21, calendar_id: 1, all_day: false },

@@ -27,7 +27,7 @@ Flickable {
     { keys: "/", action: "Open search" },
     { keys: "Shift+n", action: "Create event" },
     { keys: "E", action: "Edit event or recurring series" },
-    { keys: "D / X", action: "Delete event, occurrence, or series" },
+    { keys: "D / X", action: "Delete this event, this and following, or all events" },
     { keys: "J", action: "Join selected event" },
     { keys: "C", action: "Copy event details" },
     { keys: "O", action: "Open Chroncal" },

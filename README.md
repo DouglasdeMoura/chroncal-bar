@@ -29,14 +29,14 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Shows an enabled edit pencil for every event with a usable identity.
 - Loads and edits the whole recurring series for generated occurrences.
 - Edits stored recurrence overrides as that override only.
-- Deletes a generated occurrence, a stored override, or an entire recurring series from the panel confirm.
+- Deletes this event, this and following, or all events in a recurring series from the panel confirm.
 
 This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence authoring, timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 
 ## Requirements
 
 - Omarchy Quattro
-- Chroncal 0.7.3 or newer on `PATH`
+- Chroncal 0.7.4 or newer on `PATH`
 - `bash`, `jq`, GNU `date`, and GNU `timeout`
 - `xdg-open` for links and maps
 - `wl-copy` for copy actions
@@ -45,7 +45,7 @@ This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence a
 Install Chroncal with mise if needed:
 
 ```sh
-mise use -g github:DouglasdeMoura/chroncal@0.7.3
+mise use -g github:DouglasdeMoura/chroncal@0.7.4
 ```
 
 Authenticate and configure calendars in the Chroncal TUI before expecting events on the bar:
@@ -78,7 +78,7 @@ The second command is optional. It places the widget beside the tray in the righ
 | `,` | Agenda | Open settings |
 | `?` | Agenda | Open shortcut help |
 | `E` | Event details | Edit event or recurring series |
-| `D` or `X` | Event details | Delete event, occurrence, or series |
+| `D` or `X` | Event details | Delete this event, this and following, or all events |
 | `J` | Event details | Join or open event URL |
 | `C` | Event details | Copy event details |
 | `O` | Event details | Open Chroncal |

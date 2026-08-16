@@ -466,36 +466,14 @@ function canDeleteEvent(event) {
   return canEditEvent(event);
 }
 
-function parseExdates(value) {
-  var text = Array.isArray(value) ? value.join(",") : String(value || "");
-  var parts = text.split(",");
-  var dates = [];
-  var seen = {};
-  for (var i = 0; i < parts.length; i++) {
-    var stamp = String(parts[i] || "").trim();
-    if (stamp === "" || seen[stamp]) continue;
-    seen[stamp] = true;
-    dates.push(stamp);
-  }
-  return dates;
-}
-
 function eventSeriesReference(event) {
   if (event && presentValue(event.uid)) return String(event.uid);
   return eventReference(event);
 }
 
-function eventOccurrenceExcludeArgs(event, exdates) {
-  if (!isGeneratedRecurringEvent(event) || !canEditEvent(event)) return [];
-  var stamp = String(event.start_time || "").trim();
-  if (stamp === "") return [];
-  var dates = parseExdates(exdates);
-  var seen = {};
-  for (var i = 0; i < dates.length; i++) seen[dates[i]] = true;
-  if (!seen[stamp]) dates.push(stamp);
-  var args = ["event", "update", eventReference(event)];
-  for (var j = 0; j < dates.length; j++) args.push("--exdate", dates[j]);
-  return args;
+function eventOccurrenceStamp(event) {
+  if (event && presentValue(event.recurrence_id)) return String(event.recurrence_id);
+  return String(event && event.start_time || "").trim();
 }
 
 function eventMutationTargetArgs(event) {
@@ -574,15 +552,20 @@ function eventMutationArgs(mode, event, values, options) {
 function eventDeleteArgs(event, options) {
   var opts = options || {};
   if (!canEditEvent(event)) return [];
-  if (opts.series === true && opts.occurrence === true) return [];
-  if (opts.series === true) {
+  var thisEvent = opts.thisEvent === true;
+  var following = opts.following === true;
+  var series = opts.series === true;
+  if ((thisEvent ? 1 : 0) + (following ? 1 : 0) + (series ? 1 : 0) > 1) return [];
+  if (series) {
     var seriesRef = eventSeriesReference(event);
     return seriesRef === "" ? [] : ["event", "delete", seriesRef, "--series", "--yes"];
   }
-  if (opts.occurrence === true) {
-    if (event.recurrence_id && event.uid)
-      return ["event", "delete", String(event.uid), "--recurrence-id", String(event.recurrence_id), "--yes"];
-    return eventOccurrenceExcludeArgs(event, opts.exdates);
+  if (thisEvent || following) {
+    var stamp = eventOccurrenceStamp(event);
+    var target = eventSeriesReference(event);
+    if (target === "" || stamp === "") return [];
+    if (following) return ["event", "delete", target, "--following", stamp, "--yes"];
+    return ["event", "delete", target, "--recurrence-id", stamp, "--yes"];
   }
   if (!canMutateEvent(event)) return [];
   return ["event", "delete"].concat(eventMutationTargetArgs(event)).concat(["--yes"]);

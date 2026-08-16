@@ -15,8 +15,9 @@ Item {
 
   readonly property var actions: root.recurring
     ? [
-        { key: "occurrence", label: "This occurrence", destructive: false },
-        { key: "series", label: "Entire series", destructive: true },
+        { key: "this", label: "This event", destructive: false },
+        { key: "following", label: "This and following", destructive: false },
+        { key: "series", label: "All events", destructive: true },
         { key: "cancel", label: "Cancel", destructive: false }
       ]
     : [
@@ -83,7 +84,7 @@ Item {
         Text {
           visible: root.recurring
           width: parent.width
-          text: "This occurrence leaves the rest of the series. Entire series removes every date."
+          text: "This event leaves the rest of the series. This and following ends the series here. All events removes every date."
           color: Util.alpha(root.foreground, 0.62)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

@@ -45,7 +45,6 @@ Panel {
   property var editLoadSourceEvent: null
   property string editLoadStdoutText: ""
   property string editLoadStderrText: ""
-  property string editLoadPurpose: ""
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
@@ -209,7 +208,6 @@ Panel {
 
   function resetEditState() {
     editLoadRequested = false
-    editLoadPurpose = ""
     editorEvent = null
     editingSeries = false
   }
@@ -242,7 +240,6 @@ Panel {
     }
     editLoadSourceEvent = selectedEvent
     editLoadEventKey = Model.eventKey(selectedEvent)
-    editLoadPurpose = "edit"
     editLoadRequested = true
     editLoadBusy = true
     editLoadStdoutText = ""
@@ -258,9 +255,7 @@ Panel {
     var requested = editLoadRequested
     var source = editLoadSourceEvent
     var requestedKey = editLoadEventKey
-    var purpose = editLoadPurpose
     editLoadRequested = false
-    editLoadPurpose = ""
     if (!requested || !root.opened || !selectedEvent) return
     if (Model.eventKey(selectedEvent) !== requestedKey || !source) return
     if (exitCode !== 0) {
@@ -284,16 +279,6 @@ Panel {
       return
     }
     actionStatus = ""
-    if (purpose === "exclude") {
-      var excludeArgs = Model.eventDeleteArgs(source, { occurrence: true, exdates: parsed.exdates })
-      if (excludeArgs.length === 0) {
-        actionStatus = "Chroncal could not remove this occurrence"
-        actionStatusTimer.restart()
-        return
-      }
-      runMutation(excludeArgs, "delete-occurrence")
-      return
-    }
     openEditor(prepared, true)
   }
 
@@ -327,39 +312,14 @@ Panel {
   function confirmDelete(scope) {
     deleteConfirm.opened = false
     if (!selectedEvent) return
-    if (scope === "occurrence" && Model.isGeneratedRecurringEvent(selectedEvent)) {
-      startOccurrenceExclude()
-      return
-    }
     var options = {}
+    if (scope === "this") options.thisEvent = true
+    if (scope === "following") options.following = true
     if (scope === "series") options.series = true
-    if (scope === "occurrence") options.occurrence = true
     var args = Model.eventDeleteArgs(selectedEvent, options)
     if (args.length === 0) return
-    var kind = scope === "series" ? "delete-series" : (scope === "occurrence" ? "delete-occurrence" : "delete")
+    var kind = scope === "series" ? "delete-series" : (scope === "following" ? "delete-following" : (scope === "this" ? "delete-this" : "delete"))
     runMutation(args, kind)
-  }
-
-  function startOccurrenceExclude() {
-    if (!selectedEvent || mutationBusy || editLoadBusy) return
-    var lookupArgs = Model.seriesMasterLookupArgs(selectedEvent)
-    if (lookupArgs.length === 0) return
-    if (!hostWidget || !hostWidget.chroncalExecScript) {
-      actionStatus = "Chroncal executable is unavailable"
-      actionStatusTimer.restart()
-      return
-    }
-    editLoadSourceEvent = selectedEvent
-    editLoadEventKey = Model.eventKey(selectedEvent)
-    editLoadPurpose = "exclude"
-    editLoadRequested = true
-    editLoadBusy = true
-    editLoadStdoutText = ""
-    editLoadStderrText = ""
-    actionStatusTimer.stop()
-    actionStatus = "Preparing to remove this occurrence…"
-    editLoadProc.command = [hostWidget.chroncalExecScript].concat(lookupArgs)
-    editLoadProc.running = true
   }
 
   function runMutation(args, kind) {
@@ -386,7 +346,7 @@ Panel {
     selectedEvent = null
     selectedEventKey = ""
     resetEditState()
-    actionStatus = completed === "delete-occurrence" ? "Occurrence removed" : (completed === "delete-series" ? "Series deleted" : (completed === "delete" ? "Event deleted" : (completed === "edit" ? "Event updated" : "Event created")))
+    actionStatus = completed === "delete-this" ? "Occurrence removed" : (completed === "delete-following" ? "Later occurrences removed" : (completed === "delete-series" ? "All events deleted" : (completed === "delete" ? "Event deleted" : (completed === "edit" ? "Event updated" : "Event created"))))
     actionStatusTimer.restart()
     refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
