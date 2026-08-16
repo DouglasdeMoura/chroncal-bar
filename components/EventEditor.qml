@@ -1,6 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls as QQC
 import qs.Commons
 import qs.Ui
 import "../Model.js" as Model
@@ -95,7 +95,7 @@ Flickable {
   clip: true
   boundsBehavior: Flickable.StopAtBounds
   flickableDirection: Flickable.VerticalFlick
-  ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+  ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
 
   component FieldLabel: Text {
     color: Util.alpha(root.foreground, 0.56)
@@ -105,7 +105,7 @@ Flickable {
     font.letterSpacing: 0.8
   }
 
-  component FormField: TextField {
+  component FormField: QQC.TextField {
     color: root.foreground
     placeholderTextColor: Util.alpha(root.foreground, 0.42)
     font.family: root.fontFamily
@@ -119,6 +119,15 @@ Flickable {
       border.width: 1
       border.color: Util.alpha(root.foreground, parent.activeFocus ? 0.28 : 0.12)
     }
+  }
+
+  component FormButton: Button {
+    foreground: root.foreground
+    fontFamily: root.fontFamily
+    bordered: true
+    focusable: true
+    enabled: !root.busy
+    opacity: enabled ? 1 : 0.55
   }
 
   Column {
@@ -259,7 +268,7 @@ Flickable {
     }
 
     FieldLabel { text: "NOTES" }
-    TextArea {
+    QQC.TextArea {
       width: parent.width
       height: Style.space(48)
       text: root.descriptionValue
@@ -268,7 +277,7 @@ Flickable {
       placeholderTextColor: Util.alpha(root.foreground, 0.42)
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
-      wrapMode: TextArea.Wrap
+      wrapMode: QQC.TextArea.Wrap
       selectByMouse: true
       padding: Style.space(10)
       onTextChanged: root.descriptionValue = text
@@ -295,15 +304,14 @@ Flickable {
       anchors.right: parent.right
       spacing: Style.space(8)
 
-      Button {
+      FormButton {
         text: "Cancel"
-        enabled: !root.busy
         onClicked: root.canceled()
       }
 
-      Button {
+      FormButton {
         text: root.busy ? "Saving…" : (root.editorMode === "edit" ? (root.editingSeries ? "Save series" : "Save") : "Create")
-        enabled: !root.busy
+        background: Util.alpha(root.foreground, 0.08)
         onClicked: root.submit()
       }
     }

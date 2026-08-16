@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls as QQC
 import qs.Commons
 import qs.Ui
 import "../Model.js" as Model
@@ -30,7 +30,7 @@ Flickable {
   boundsBehavior: Flickable.StopAtBounds
   flickableDirection: Flickable.VerticalFlick
   interactive: contentHeight > height
-  ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+  ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
 
   Column {
     id: settingsColumn
@@ -72,6 +72,8 @@ Flickable {
     Button {
       visible: root.calendarSelectionCustomized
       text: "Use default (all calendars)"
+      bordered: true
+      focusable: true
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.configurationChanged({
