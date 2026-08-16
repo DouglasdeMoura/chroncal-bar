@@ -122,6 +122,93 @@ const clearOptionalArgs = model.eventMutationArgs("edit", { ...existingEditEvent
 assert.deepEqual(clearOptionalArgs.slice(-4), ["--location", "", "--description", ""]);
 assert.notEqual(model.eventKey({ id: 42, uid: "weekly", start_time: "2026-08-18T14:30:00Z" }), model.eventKey({ id: 42, uid: "weekly", start_time: "2026-08-25T14:30:00Z" }));
 
+assert.equal(model.eventReference(null), "");
+assert.equal(model.eventReference({}), "");
+assert.equal(model.eventReference({ id: "", uid: "" }), "");
+assert.equal(model.eventReference({ uid: "weekly-uid" }), "weekly-uid");
+assert.equal(model.eventReference({ id: 42, uid: "weekly-uid" }), "42");
+assert.equal(model.eventReference({ id: 0 }), "0");
+assert.equal(model.canEditEvent({ id: 0 }), true);
+assert.equal(model.canEditEvent(null), false);
+assert.equal(model.canEditEvent({}), false);
+assert.equal(model.canEditEvent({ id: 42 }), true);
+assert.equal(model.canEditEvent({ uid: "weekly-uid" }), true);
+assert.equal(model.isGeneratedRecurringEvent(null), false);
+assert.equal(model.isGeneratedRecurringEvent({ id: 42, recurrence_rule: "" }), false);
+assert.equal(model.isGeneratedRecurringEvent({ id: 42, recurrence_rule: "FREQ=WEEKLY" }), true);
+assert.equal(model.isGeneratedRecurringEvent({ id: 42, rdates: "2026-08-18T14:30:00Z" }), true);
+assert.equal(model.isGeneratedRecurringEvent({ id: 42, uid: "weekly-uid", recurrence_rule: "FREQ=WEEKLY", recurrence_id: "2026-08-18T14:30:00Z" }), false);
+assert.equal(model.canMutateEvent({ recurrence_rule: "FREQ=WEEKLY", recurrence_id: "2026-08-18T14:30:00Z" }), false);
+assert.deepEqual(model.eventDeleteArgs({}), []);
+assert.deepEqual(model.seriesMasterLookupArgs({ id: 42, recurrence_rule: "FREQ=WEEKLY" }), ["event", "get", "42", "--output", "json"]);
+assert.deepEqual(model.seriesMasterLookupArgs({ uid: "weekly-uid", rdates: "2026-08-18T14:30:00Z" }), ["event", "get", "weekly-uid", "--output", "json"]);
+assert.deepEqual(model.seriesMasterLookupArgs({ id: 42, uid: "weekly-uid", recurrence_rule: "FREQ=WEEKLY", recurrence_id: "2026-08-18T14:30:00Z" }), []);
+assert.deepEqual(model.seriesMasterLookupArgs({ id: 42, recurrence_rule: "" }), []);
+assert.deepEqual(model.seriesMasterLookupArgs({ recurrence_rule: "FREQ=WEEKLY" }), []);
+
+const generatedOccurrence = {
+  id: 42,
+  uid: "weekly-uid",
+  title: "Review launch",
+  start_time: "2026-08-25T14:30:00Z",
+  end_time: "2026-08-25T15:15:00Z",
+  all_day: false,
+  recurrence_rule: "FREQ=WEEKLY",
+  calendar_id: 3,
+  calendar_name: "Work",
+  calendar_color: "#ff0000",
+  calendar_owner_email: "owner@example.test"
+};
+const loadedSeriesMaster = {
+  id: 42,
+  uid: "weekly-uid",
+  title: "Review launch",
+  start_time: "2026-08-18T14:30:00Z",
+  end_time: "2026-08-18T15:15:00Z",
+  all_day: false,
+  recurrence_rule: "FREQ=WEEKLY",
+  calendar_name: "Team",
+  calendar_color: "#00ff00",
+  calendar_owner_email: null
+};
+const mergedSeriesMaster = model.seriesEditorEvent(loadedSeriesMaster, generatedOccurrence);
+assert.notEqual(mergedSeriesMaster, loadedSeriesMaster);
+assert.equal(mergedSeriesMaster.start_time, "2026-08-18T14:30:00Z");
+assert.equal(mergedSeriesMaster.end_time, "2026-08-18T15:15:00Z");
+assert.equal(mergedSeriesMaster.recurrence_rule, "FREQ=WEEKLY");
+assert.equal(mergedSeriesMaster.calendar_name, "Team");
+assert.equal(mergedSeriesMaster.calendar_color, "#00ff00");
+assert.equal(mergedSeriesMaster.calendar_id, 3);
+assert.equal(mergedSeriesMaster.calendar_owner_email, "owner@example.test");
+const idOnlySeriesMaster = model.seriesEditorEvent({ id: 42, recurrence_rule: "FREQ=WEEKLY" }, generatedOccurrence);
+assert.equal(idOnlySeriesMaster.calendar_name, "Work");
+assert.notEqual(model.seriesEditorEvent({ id: "42", recurrence_rule: "FREQ=WEEKLY" }, generatedOccurrence), null);
+assert.equal(model.seriesEditorEvent({ id: 43, uid: "weekly-uid", recurrence_rule: "FREQ=WEEKLY" }, generatedOccurrence), null);
+assert.equal(model.seriesEditorEvent({ id: 42, uid: "other-uid", recurrence_rule: "FREQ=WEEKLY" }, generatedOccurrence), null);
+assert.equal(model.seriesEditorEvent({ recurrence_rule: "FREQ=WEEKLY" }, generatedOccurrence), null);
+assert.equal(model.seriesEditorEvent({ id: 42, uid: "weekly-uid" }, generatedOccurrence), null);
+assert.equal(model.seriesEditorEvent(loadedSeriesMaster, { id: 42, uid: "weekly-uid", recurrence_rule: "FREQ=WEEKLY", recurrence_id: "2026-08-25T14:30:00Z" }), null);
+assert.equal(model.seriesEditorEvent(null, generatedOccurrence), null);
+const seriesEditValues = { ...createValues, calendar: "Team" };
+const seriesUpdateArgs = model.eventMutationArgs("edit", mergedSeriesMaster, seriesEditValues, { series: true });
+assert.deepEqual(seriesUpdateArgs.slice(0, 4), ["event", "update", "42", "--title"]);
+assert.deepEqual(seriesUpdateArgs.slice(-4), ["--location", "Room 4", "--description", "Decide launch date"]);
+assert.deepEqual(model.eventMutationArgs("edit", mergedSeriesMaster, seriesEditValues), []);
+assert.deepEqual(model.eventMutationArgs("edit", mergedSeriesMaster, seriesEditValues, { series: false }), []);
+assert.deepEqual(model.eventMutationArgs("edit", { recurrence_rule: "FREQ=WEEKLY" }, seriesEditValues, { series: true }), []);
+assert.deepEqual(model.eventMutationTargetArgs({ id: 0, recurrence_rule: "FREQ=WEEKLY" }), ["0"]);
+assert.deepEqual(model.eventMutationTargetArgs({ id: 0 }), ["0"]);
+assert.deepEqual(model.eventMutationTargetArgs({ id: 0, uid: "weekly-uid", recurrence_id: "2026-08-18T14:30:00Z" }), ["weekly-uid", "--recurrence-id", "2026-08-18T14:30:00Z"]);
+const zeroIdSeriesArgs = model.eventMutationArgs("edit", { id: 0, recurrence_rule: "FREQ=WEEKLY" }, createValues, { series: true });
+assert.deepEqual(zeroIdSeriesArgs.slice(0, 3), ["event", "update", "0"]);
+assert.deepEqual(model.eventMutationArgs("edit", { id: 0, recurrence_rule: "FREQ=WEEKLY" }, createValues), []);
+assert.deepEqual(model.eventDeleteArgs({ id: 0 }), ["event", "delete", "0", "--yes"]);
+assert.deepEqual(model.eventMutationArgs("edit", existingEditEvent, createValues, { series: true }), ["event", "update", "42", "--title", "Review launch"]);
+assert.deepEqual(model.eventMutationArgs("create", null, createValues, { series: true }), model.eventMutationArgs("create", null, createValues));
+assert.deepEqual(model.eventDeleteArgs(mergedSeriesMaster), []);
+const overrideEditEvent = { ...existingEditEvent, uid: "weekly-uid", recurrence_id: "2026-08-18T14:30:00Z" };
+assert.deepEqual(model.eventMutationArgs("edit", overrideEditEvent, createValues), ["event", "update", "weekly-uid", "--recurrence-id", "2026-08-18T14:30:00Z", "--title", "Review launch"]);
+
 const filterEvents = [
   { ...detailedEvent, id: 21, calendar_id: 1, all_day: false },
   { ...events[2], id: 22, calendar_id: 2, all_day: true, attendees: [], location: "", conference_url: "", url: "" },

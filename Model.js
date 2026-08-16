@@ -373,16 +373,58 @@ function validateEventForm(values) {
   return errors;
 }
 
-function canMutateEvent(event) {
+function presentValue(value) {
+  return value !== undefined && value !== null && String(value) !== "";
+}
+
+function eventReference(event) {
+  if (!event) return "";
+  if (presentValue(event.id)) return String(event.id);
+  if (presentValue(event.uid)) return String(event.uid);
+  return "";
+}
+
+function canEditEvent(event) {
+  return eventReference(event) !== "";
+}
+
+function isGeneratedRecurringEvent(event) {
   if (!event) return false;
   var recurring = String(event.recurrence_rule || "") !== "" || String(event.rdates || "") !== "";
-  return !recurring || String(event.recurrence_id || "") !== "";
+  return recurring && String(event.recurrence_id || "") === "";
+}
+
+function canMutateEvent(event) {
+  if (!canEditEvent(event)) return false;
+  return !isGeneratedRecurringEvent(event);
 }
 
 function eventMutationTargetArgs(event) {
   if (event && event.recurrence_id && event.uid)
     return [String(event.uid), "--recurrence-id", String(event.recurrence_id)];
-  return [String(event && (event.id || event.uid) || "")];
+  return [eventReference(event)];
+}
+
+function seriesMasterLookupArgs(event) {
+  if (!canEditEvent(event) || !isGeneratedRecurringEvent(event)) return [];
+  return ["event", "get", eventReference(event), "--output", "json"];
+}
+
+function seriesEditorEvent(master, occurrence) {
+  if (!isGeneratedRecurringEvent(master) || !isGeneratedRecurringEvent(occurrence)) return null;
+  var idsComparable = presentValue(master.id) && presentValue(occurrence.id);
+  var uidsComparable = presentValue(master.uid) && presentValue(occurrence.uid);
+  if (idsComparable && String(master.id) !== String(occurrence.id)) return null;
+  if (uidsComparable && String(master.uid) !== String(occurrence.uid)) return null;
+  if (!idsComparable && !uidsComparable) return null;
+  var editorEvent = {};
+  for (var key in master) editorEvent[key] = master[key];
+  var metadataFields = ["calendar_id", "calendar_name", "calendar_color", "calendar_owner_email"];
+  for (var i = 0; i < metadataFields.length; i++) {
+    var field = metadataFields[i];
+    if (!presentValue(editorEvent[field]) && presentValue(occurrence[field])) editorEvent[field] = occurrence[field];
+  }
+  return editorEvent;
 }
 
 function pushOptionalFlag(args, flag, value) {
@@ -390,9 +432,11 @@ function pushOptionalFlag(args, flag, value) {
   if (text !== "") args.push(flag, text);
 }
 
-function eventMutationArgs(mode, event, values) {
+function eventMutationArgs(mode, event, values, options) {
   var errors = validateEventForm(values);
-  if (errors.length > 0 || (mode === "edit" && !canMutateEvent(event))) return [];
+  var seriesEdit = mode === "edit" && options && options.series === true &&
+    canEditEvent(event) && isGeneratedRecurringEvent(event);
+  if (errors.length > 0 || (mode === "edit" && !canMutateEvent(event) && !seriesEdit)) return [];
   var form = values || {};
   var title = String(form.title || "").trim();
   var args;
