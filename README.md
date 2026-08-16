@@ -29,9 +29,9 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Shows an enabled edit pencil for every event with a usable identity.
 - Loads and edits the whole recurring series for generated occurrences.
 - Edits stored recurrence overrides as that override only.
-- Keeps generated-occurrence deletion in Chroncal.
+- Deletes a generated occurrence, a stored override, or an entire recurring series from the panel confirm.
 
-This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence authoring, generated-occurrence deletion, timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
+This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence authoring, timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 
 ## Requirements
 
@@ -78,7 +78,7 @@ The second command is optional. It places the widget beside the tray in the righ
 | `,` | Agenda | Open settings |
 | `?` | Agenda | Open shortcut help |
 | `E` | Event details | Edit event or recurring series |
-| `D` or `X` | Event details | Delete with confirmation |
+| `D` or `X` | Event details | Delete event, occurrence, or series |
 | `J` | Event details | Join or open event URL |
 | `C` | Event details | Copy event details |
 | `O` | Event details | Open Chroncal |

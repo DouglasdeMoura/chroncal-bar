@@ -45,6 +45,7 @@ Panel {
   property var editLoadSourceEvent: null
   property string editLoadStdoutText: ""
   property string editLoadStderrText: ""
+  property string editLoadPurpose: ""
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
@@ -208,6 +209,7 @@ Panel {
 
   function resetEditState() {
     editLoadRequested = false
+    editLoadPurpose = ""
     editorEvent = null
     editingSeries = false
   }
@@ -240,6 +242,7 @@ Panel {
     }
     editLoadSourceEvent = selectedEvent
     editLoadEventKey = Model.eventKey(selectedEvent)
+    editLoadPurpose = "edit"
     editLoadRequested = true
     editLoadBusy = true
     editLoadStdoutText = ""
@@ -255,7 +258,9 @@ Panel {
     var requested = editLoadRequested
     var source = editLoadSourceEvent
     var requestedKey = editLoadEventKey
+    var purpose = editLoadPurpose
     editLoadRequested = false
+    editLoadPurpose = ""
     if (!requested || !root.opened || !selectedEvent) return
     if (Model.eventKey(selectedEvent) !== requestedKey || !source) return
     if (exitCode !== 0) {
@@ -279,6 +284,16 @@ Panel {
       return
     }
     actionStatus = ""
+    if (purpose === "exclude") {
+      var excludeArgs = Model.eventDeleteArgs(source, { occurrence: true, exdates: parsed.exdates })
+      if (excludeArgs.length === 0) {
+        actionStatus = "Chroncal could not remove this occurrence"
+        actionStatusTimer.restart()
+        return
+      }
+      runMutation(excludeArgs, "delete-occurrence")
+      return
+    }
     openEditor(prepared, true)
   }
 
@@ -302,17 +317,49 @@ Panel {
   }
 
   function requestDelete() {
-    if (!selectedEvent || mutationBusy || editLoadBusy || !Model.canMutateEvent(selectedEvent)) return
-    deleteConfirm.selectedIndex = 1
+    if (!selectedEvent || mutationBusy || editLoadBusy || !Model.canDeleteEvent(selectedEvent)) return
+    deleteConfirm.recurring = Model.isRecurringEvent(selectedEvent)
+    deleteConfirm.selectedIndex = 0
     deleteConfirm.opened = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
-  function confirmDelete() {
+  function confirmDelete(scope) {
     deleteConfirm.opened = false
-    var args = Model.eventDeleteArgs(selectedEvent)
+    if (!selectedEvent) return
+    if (scope === "occurrence" && Model.isGeneratedRecurringEvent(selectedEvent)) {
+      startOccurrenceExclude()
+      return
+    }
+    var options = {}
+    if (scope === "series") options.series = true
+    if (scope === "occurrence") options.occurrence = true
+    var args = Model.eventDeleteArgs(selectedEvent, options)
     if (args.length === 0) return
-    runMutation(args, "delete")
+    var kind = scope === "series" ? "delete-series" : (scope === "occurrence" ? "delete-occurrence" : "delete")
+    runMutation(args, kind)
+  }
+
+  function startOccurrenceExclude() {
+    if (!selectedEvent || mutationBusy || editLoadBusy) return
+    var lookupArgs = Model.seriesMasterLookupArgs(selectedEvent)
+    if (lookupArgs.length === 0) return
+    if (!hostWidget || !hostWidget.chroncalExecScript) {
+      actionStatus = "Chroncal executable is unavailable"
+      actionStatusTimer.restart()
+      return
+    }
+    editLoadSourceEvent = selectedEvent
+    editLoadEventKey = Model.eventKey(selectedEvent)
+    editLoadPurpose = "exclude"
+    editLoadRequested = true
+    editLoadBusy = true
+    editLoadStdoutText = ""
+    editLoadStderrText = ""
+    actionStatusTimer.stop()
+    actionStatus = "Preparing to remove this occurrence…"
+    editLoadProc.command = [hostWidget.chroncalExecScript].concat(lookupArgs)
+    editLoadProc.running = true
   }
 
   function runMutation(args, kind) {
@@ -339,7 +386,7 @@ Panel {
     selectedEvent = null
     selectedEventKey = ""
     resetEditState()
-    actionStatus = completed === "delete" ? "Event deleted" : (completed === "edit" ? "Event updated" : "Event created")
+    actionStatus = completed === "delete-occurrence" ? "Occurrence removed" : (completed === "delete-series" ? "Series deleted" : (completed === "delete" ? "Event deleted" : (completed === "edit" ? "Event updated" : "Event created")))
     actionStatusTimer.restart()
     refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -416,7 +463,8 @@ Panel {
       blocked: (root.searching && searchField.activeFocus) || root.showingEditor
       onMoveRequested: function(dx, dy) {
         if (deleteConfirm.opened) {
-          if (dx !== 0 || dy !== 0) deleteConfirm.selectedIndex = deleteConfirm.selectedIndex === 0 ? 1 : 0
+          if (dx !== 0) deleteConfirm.cycle(dx)
+          else if (dy !== 0) deleteConfirm.cycle(dy)
           return
         }
         if (!root.showingDetails && !root.showingSettings && !root.showingEditor && dy !== 0) root.moveSelection(dy)
@@ -429,19 +477,18 @@ Panel {
         else root.close()
       }
       onActivateRequested: {
-        if (deleteConfirm.opened) {
-          if (deleteConfirm.selectedIndex === 0) deleteConfirm.opened = false
-          else root.confirmDelete()
-        } else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp) root.activateSelection()
+        if (deleteConfirm.opened) deleteConfirm.activate()
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp) root.activateSelection()
       }
       onTabRequested: function(direction) {
-        if (deleteConfirm.opened) deleteConfirm.selectedIndex = deleteConfirm.selectedIndex === 0 ? 1 : 0
+        if (deleteConfirm.opened) deleteConfirm.cycle(direction)
         else root.switchPanel(direction)
       }
       onDeleteRequested: {
         if (root.showingDetails) root.requestDelete()
       }
       onTextKey: function(text) {
+        if (deleteConfirm.opened) return
         if (text === "?") root.toggleHelp()
         else if (root.showingHelp) return
         else if (text === "r" || text === "R") root.refresh()
@@ -736,17 +783,16 @@ Panel {
         }
       }
 
-      ConfirmDialog {
+      DeleteConfirm {
         id: deleteConfirm
         anchors.fill: parent
         z: 20
-        message: "Delete “" + String(root.selectedEvent ? root.selectedEvent.title : "this event") + "”?"
-        confirmText: "Delete"
+        title: String(root.selectedEvent ? root.selectedEvent.title : "this event")
         background: root.bar ? root.bar.background : Color.background
         foreground: root.contentForeground
         fontFamily: root.contentFontFamily
         onCanceled: opened = false
-        onConfirmed: root.confirmDelete()
+        onChosen: function(scope) { root.confirmDelete(scope) }
       }
     }
   }

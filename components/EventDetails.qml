@@ -25,6 +25,8 @@ Flickable {
   readonly property bool canEdit: Model.canEditEvent(eventData)
   readonly property bool generatedRecurring: Model.isGeneratedRecurringEvent(eventData)
   readonly property bool canMutate: Model.canMutateEvent(eventData)
+  readonly property bool canDelete: Model.canDeleteEvent(eventData)
+  readonly property bool recurring: Model.isRecurringEvent(eventData)
 
   contentWidth: width
   contentHeight: detailsColumn.implicitHeight
@@ -189,9 +191,9 @@ Flickable {
     }
 
     Text {
-      visible: root.generatedRecurring
+      visible: root.recurring
       width: parent.width
-      text: "The pencil edits this entire recurring series. Delete individual occurrences in Chroncal."
+      text: root.generatedRecurring ? "The pencil edits this entire recurring series. The trash can remove this occurrence or the whole series." : "The trash can remove this occurrence or the whole series."
       textFormat: Text.PlainText
       color: Util.alpha(root.foreground, 0.62)
       font.family: root.fontFamily
@@ -274,11 +276,11 @@ Flickable {
 
       PanelActionButton {
         iconText: "󰆴"
-        tooltipText: root.canMutate ? "Delete event" : "Delete the recurring series in Chroncal"
+        tooltipText: root.recurring ? "Delete occurrence or series" : "Delete event"
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
-        enabled: root.canMutate && !root.busy
+        enabled: root.canDelete && !root.busy
         onClicked: root.deleteRequested()
       }
     }
