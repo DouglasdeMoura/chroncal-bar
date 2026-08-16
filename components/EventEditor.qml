@@ -95,7 +95,7 @@ Flickable {
   clip: true
   boundsBehavior: Flickable.StopAtBounds
   flickableDirection: Flickable.VerticalFlick
-  ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
+  QQC.ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
 
   component FieldLabel: Text {
     color: Util.alpha(root.foreground, 0.56)

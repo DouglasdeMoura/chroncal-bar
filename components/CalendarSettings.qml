@@ -30,7 +30,7 @@ Flickable {
   boundsBehavior: Flickable.StopAtBounds
   flickableDirection: Flickable.VerticalFlick
   interactive: contentHeight > height
-  ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
+  QQC.ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
 
   Column {
     id: settingsColumn
