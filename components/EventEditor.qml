@@ -74,14 +74,17 @@ Flickable {
 
   onVisibleChanged: {
     if (visible) initialize()
+    else datePicker.close()
   }
 
   Keys.priority: Keys.BeforeItem
   Keys.onPressed: function(event) {
     if (event.key === Qt.Key_Escape) {
-      root.canceled()
+      if (datePicker.opened) datePicker.close()
+      else root.canceled()
       event.accepted = true
     } else if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+      datePicker.commitIfOpen()
       root.submit()
       event.accepted = true
     }
@@ -171,27 +174,24 @@ Flickable {
       onAccepted: root.submit()
     }
 
+    FieldLabel { text: "DATE" }
+    DatePicker {
+      id: datePicker
+      width: parent.width
+      value: root.dateValue
+      enabled: root.canEditTime
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onChanged: function(value) { root.dateValue = value }
+    }
+
     Row {
+      visible: !root.allDay
       width: parent.width
       spacing: Style.space(8)
 
       Column {
-        width: parent.width * 0.42
-        spacing: Style.space(4)
-        FieldLabel { text: "DATE" }
-        FormField {
-          width: parent.width
-          text: root.dateValue
-          enabled: root.canEditTime
-          placeholderText: "YYYY-MM-DD"
-          inputMethodHints: Qt.ImhDate
-          onTextEdited: root.dateValue = text
-        }
-      }
-
-      Column {
-        visible: !root.allDay
-        width: parent.width * 0.25
+        width: (parent.width - Style.space(8)) * 0.5
         spacing: Style.space(4)
         FieldLabel { text: "TIME" }
         FormField {
@@ -205,8 +205,7 @@ Flickable {
       }
 
       Column {
-        visible: !root.allDay
-        width: parent.width * 0.27
+        width: (parent.width - Style.space(8)) * 0.5
         spacing: Style.space(4)
         FieldLabel { text: "DURATION" }
         FormField {
