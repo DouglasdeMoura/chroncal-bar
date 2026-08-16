@@ -35,6 +35,14 @@ Panel {
   property string mutationStdoutText: ""
   property string mutationStderrText: ""
   property string actionStatus: ""
+  property var editorEvent: null
+  property bool editingSeries: false
+  property bool editLoadBusy: false
+  property bool editLoadRequested: false
+  property string editLoadEventKey: ""
+  property var editLoadSourceEvent: null
+  property string editLoadStdoutText: ""
+  property string editLoadStderrText: ""
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
@@ -51,6 +59,7 @@ Panel {
     root.editorMode = ""
     root.showingSettings = false
     root.showingHelp = false
+    root.resetEditState()
     deleteConfirm.opened = false
     root.controller.hide()
   }
@@ -73,6 +82,7 @@ Panel {
     showingSettings = false
     showingHelp = false
     actionStatus = ""
+    resetEditState()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
@@ -82,6 +92,7 @@ Panel {
     showingSettings = false
     showingHelp = false
     actionStatus = ""
+    resetEditState()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
@@ -90,6 +101,7 @@ Panel {
     editorMode = ""
     showingHelp = false
     showingSettings = showingSettings ? false : true
+    resetEditState()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
@@ -161,6 +173,7 @@ Panel {
     editorMode = ""
     showingSettings = false
     showingHelp = showingHelp ? false : true
+    resetEditState()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
@@ -175,28 +188,98 @@ Panel {
     showingSettings = false
     showingHelp = false
     mutationError = ""
+    resetEditState()
     editorMode = "create"
   }
 
+  function resetEditState() {
+    editLoadRequested = false
+    editorEvent = null
+    editingSeries = false
+  }
+
+  function openEditor(eventData, series) {
+    editorEvent = eventData
+    editingSeries = series === true
+    editorMode = "edit"
+    mutationError = ""
+    actionStatus = ""
+    Qt.callLater(function() { eventEditor.initialize() })
+  }
+
   function startEdit() {
-    if (!selectedEvent || !Model.canMutateEvent(selectedEvent)) return
+    if (!selectedEvent || !Model.canEditEvent(selectedEvent)) return
+    if (mutationBusy || editLoadBusy) return
+    var direct = Model.canMutateEvent(selectedEvent)
+    var lookupArgs = direct ? [] : Model.seriesMasterLookupArgs(selectedEvent)
+    if (!direct && lookupArgs.length === 0) return
     showingSettings = false
     showingHelp = false
-    mutationError = ""
-    editorMode = "edit"
-    Qt.callLater(function() { eventEditor.initialize() })
+    if (direct) {
+      openEditor(selectedEvent, false)
+      return
+    }
+    if (!hostWidget || !hostWidget.chroncalExecScript) {
+      actionStatus = "Chroncal executable is unavailable"
+      actionStatusTimer.restart()
+      return
+    }
+    editLoadSourceEvent = selectedEvent
+    editLoadEventKey = Model.eventKey(selectedEvent)
+    editLoadRequested = true
+    editLoadBusy = true
+    editLoadStdoutText = ""
+    editLoadStderrText = ""
+    actionStatusTimer.stop()
+    actionStatus = "Loading recurring series…"
+    editLoadProc.command = [hostWidget.chroncalExecScript].concat(lookupArgs)
+    editLoadProc.running = true
+  }
+
+  function finishEditLoad(exitCode) {
+    editLoadBusy = false
+    var requested = editLoadRequested
+    var source = editLoadSourceEvent
+    var requestedKey = editLoadEventKey
+    editLoadRequested = false
+    if (!requested || !root.opened || !selectedEvent) return
+    if (Model.eventKey(selectedEvent) !== requestedKey || !source) return
+    if (exitCode !== 0) {
+      var failure = String(editLoadStderrText).trim()
+      if (failure === "") failure = String(editLoadStdoutText).trim()
+      if (failure === "") failure = "Chroncal could not load the recurring series"
+      actionStatus = failure
+      actionStatusTimer.restart()
+      return
+    }
+    var parsed = null
+    try {
+      parsed = JSON.parse(String(editLoadStdoutText))
+    } catch (error) {
+      parsed = null
+    }
+    var prepared = Model.seriesEditorEvent(parsed, source)
+    if (prepared === null) {
+      actionStatus = "Chroncal returned an invalid recurring series"
+      actionStatusTimer.restart()
+      return
+    }
+    actionStatus = ""
+    openEditor(prepared, true)
   }
 
   function cancelEditor() {
     var wasEditing = editorMode === "edit"
     editorMode = ""
     mutationError = ""
+    editorEvent = null
+    editingSeries = false
     if (!wasEditing) selectedEvent = null
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function submitEditor(values) {
-    var args = Model.eventMutationArgs(editorMode, selectedEvent, values)
+    var args = Model.eventMutationArgs(editorMode, editorEvent, values, { series: editingSeries })
     if (args.length === 0) {
       mutationError = "Check the event fields"
       return
@@ -241,6 +324,7 @@ Panel {
     editorMode = ""
     selectedEvent = null
     selectedEventKey = ""
+    resetEditState()
     actionStatus = completed === "delete" ? "Event deleted" : (completed === "edit" ? "Event updated" : "Event created")
     actionStatusTimer.restart()
     refresh()
@@ -288,6 +372,13 @@ Panel {
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.mutationStdoutText = text }
     stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.mutationStderrText = text }
     onExited: function(exitCode) { Qt.callLater(function() { root.finishMutation(exitCode) }) }
+  }
+
+  Process {
+    id: editLoadProc
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.editLoadStdoutText = text }
+    stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.editLoadStderrText = text }
+    onExited: function(exitCode) { Qt.callLater(function() { root.finishEditLoad(exitCode) }) }
   }
 
   KeyboardPanel {
@@ -583,7 +674,7 @@ Panel {
             bar: root.bar
             eventData: root.selectedEvent || ({})
             actionStatus: root.actionStatus
-            busy: root.mutationBusy
+            busy: root.mutationBusy || root.editLoadBusy
             onBackRequested: root.backToAgenda()
             onJoinRequested: root.joinEvent()
             onMapRequested: root.openMap()
@@ -600,7 +691,8 @@ Panel {
             anchors.fill: parent
             bar: root.bar
             editorMode: root.editorMode
-            eventData: root.selectedEvent
+            eventData: root.editorEvent
+            editingSeries: root.editingSeries
             calendars: root.calendars
             busy: root.mutationBusy
             externalError: root.mutationError
