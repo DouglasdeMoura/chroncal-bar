@@ -12,7 +12,8 @@ Item {
   property string fontFamily: Style.font.family
   property int weekStart: Qt.locale().firstDayOfWeek
 
-  readonly property bool opened: popup.opened
+  property bool picking: false
+  readonly property bool opened: picking
 
   signal changed(string value)
 
@@ -27,22 +28,24 @@ Item {
     return date ? Qt.formatDate(date, "ddd d MMM yyyy") : "Pick a date"
   }
 
-  implicitHeight: trigger.height
+  implicitHeight: trigger.height + (picking ? calendar.height + Style.space(6) : 0)
 
-  onVisibleChanged: if (!visible) popup.close()
+  onVisibleChanged: if (!visible) picking = false
 
   function close() {
-    popup.close()
+    picking = false
+    Qt.callLater(function() { trigger.forceActiveFocus() })
   }
 
   function commitIfOpen() {
-    if (popup.opened) selectKey(cursorKey)
+    if (picking) selectKey(cursorKey)
   }
 
   function selectKey(key) {
     if (!root.enabled || !Model.parseDateInput(key)) return
     root.changed(key)
-    popup.close()
+    picking = false
+    Qt.callLater(function() { trigger.forceActiveFocus() })
   }
 
   function openPicker() {
@@ -51,7 +54,8 @@ Item {
     viewYear = date.getFullYear()
     viewMonth = date.getMonth()
     cursorKey = Model.formatDateInput(date)
-    popup.open()
+    picking = true
+    Qt.callLater(function() { gridFocus.forceActiveFocus() })
   }
 
   function moveCursor(days) {
@@ -85,19 +89,19 @@ Item {
     width: parent.width
     height: Style.space(34)
     radius: Style.cornerRadius
-    color: Util.alpha(root.foreground, trigger.activeFocus ? 0.10 : 0.06)
+    color: Util.alpha(root.foreground, trigger.activeFocus || root.picking ? 0.10 : 0.06)
     border.width: 1
-    border.color: Util.alpha(root.foreground, trigger.activeFocus ? 0.28 : 0.12)
+    border.color: Util.alpha(root.foreground, trigger.activeFocus || root.picking ? 0.28 : 0.12)
     opacity: root.enabled ? 1 : 0.55
     activeFocusOnTab: root.enabled
 
     Keys.onPressed: function(event) {
       if (!root.enabled) return
       if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space || event.key === Qt.Key_Down) {
-        root.openPicker()
+        root.picking ? root.close() : root.openPicker()
         event.accepted = true
-      } else if (event.key === Qt.Key_Escape && popup.opened) {
-        popup.close()
+      } else if (event.key === Qt.Key_Escape && root.picking) {
+        root.close()
         event.accepted = true
       }
     }
@@ -120,7 +124,7 @@ Item {
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
       anchors.rightMargin: Style.space(10)
-      text: "󰅀"
+      text: root.picking ? "󰅃" : "󰅀"
       color: Util.alpha(root.foreground, 0.72)
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
@@ -132,168 +136,152 @@ Item {
       cursorShape: Qt.PointingHandCursor
       onClicked: {
         trigger.forceActiveFocus()
-        popup.opened ? popup.close() : root.openPicker()
+        root.picking ? root.close() : root.openPicker()
       }
     }
   }
 
-  Popup {
-    id: popup
-    x: 0
-    y: trigger.height + Style.space(4)
-    width: root.width
-    padding: Style.space(8)
-    focus: true
+  Column {
+    id: calendar
+    visible: root.picking
+    anchors.top: trigger.bottom
+    anchors.topMargin: Style.space(6)
+    width: parent.width
+    spacing: Style.space(6)
 
-    background: Rectangle {
-      radius: Style.cornerRadius
-      color: Color.popups.background
-      border.width: 1
-      border.color: Color.popups.border
+    Item {
+      width: parent.width
+      height: Style.space(28)
+
+      PanelActionButton {
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: "󰅁"
+        tooltipText: "Previous month"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        onClicked: root.moveMonth(-1)
+      }
+
+      Text {
+        anchors.centerIn: parent
+        width: Style.space(140)
+        horizontalAlignment: Text.AlignHCenter
+        text: Qt.formatDate(new Date(root.viewYear, root.viewMonth, 1), "MMMM yyyy")
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 0.8
+      }
+
+      PanelActionButton {
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: "󰅂"
+        tooltipText: "Next month"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        onClicked: root.moveMonth(1)
+      }
     }
 
-    onOpened: Qt.callLater(function() { gridFocus.forceActiveFocus() })
-    onClosed: Qt.callLater(function() { trigger.forceActiveFocus() })
-
-    contentItem: Column {
-      id: calendar
-      width: popup.availableWidth
-      spacing: Style.space(6)
-
-      Item {
-        width: parent.width
-        height: Style.space(28)
-
-        PanelActionButton {
-          anchors.left: parent.left
-          anchors.verticalCenter: parent.verticalCenter
-          iconText: "󰅁"
-          tooltipText: "Previous month"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          onClicked: root.moveMonth(-1)
-        }
-
+    Row {
+      width: parent.width
+      Repeater {
+        model: root.weekdays
         Text {
-          anchors.centerIn: parent
-          width: Style.space(140)
+          required property var modelData
+          width: calendar.width / 7
           horizontalAlignment: Text.AlignHCenter
-          text: Qt.formatDate(new Date(root.viewYear, root.viewMonth, 1), "MMMM yyyy")
-          color: root.foreground
+          text: Qt.locale().dayName(modelData, Locale.ShortFormat)
+          color: Util.alpha(root.foreground, 0.54)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           font.bold: true
-          font.letterSpacing: 0.8
         }
+      }
+    }
 
-        PanelActionButton {
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          iconText: "󰅂"
-          tooltipText: "Next month"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          onClicked: root.moveMonth(1)
+    Item {
+      id: gridFocus
+      width: parent.width
+      height: gridColumn.height
+      activeFocusOnTab: root.picking
+
+      Keys.priority: Keys.BeforeItem
+      Keys.onPressed: function(event) {
+        var text = event.text
+        if (event.key === Qt.Key_Escape) {
+          root.close()
+          event.accepted = true
+        } else if (event.key === Qt.Key_Left || text === "h" || text === "H") {
+          root.moveCursor(-1)
+          event.accepted = true
+        } else if (event.key === Qt.Key_Right || text === "l" || text === "L") {
+          root.moveCursor(1)
+          event.accepted = true
+        } else if (event.key === Qt.Key_Up || text === "k" || text === "K") {
+          root.moveCursor(-7)
+          event.accepted = true
+        } else if (event.key === Qt.Key_Down || text === "j" || text === "J") {
+          root.moveCursor(7)
+          event.accepted = true
+        } else if (event.key === Qt.Key_PageUp) {
+          root.moveMonth(-1)
+          event.accepted = true
+        } else if (event.key === Qt.Key_PageDown) {
+          root.moveMonth(1)
+          event.accepted = true
+        } else if (text === "t" || text === "T") {
+          root.jumpToday()
+          event.accepted = true
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+          root.selectKey(root.cursorKey)
+          event.accepted = true
         }
       }
 
-      Row {
+      Column {
+        id: gridColumn
         width: parent.width
+        spacing: Style.space(2)
+
         Repeater {
-          model: root.weekdays
-          Text {
+          model: root.weeks
+
+          Row {
             required property var modelData
-            width: calendar.width / 7
-            horizontalAlignment: Text.AlignHCenter
-            text: Qt.locale().dayName(modelData, Locale.ShortFormat)
-            color: Util.alpha(root.foreground, 0.54)
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            font.bold: true
-          }
-        }
-      }
+            width: gridColumn.width
+            Repeater {
+              model: parent.modelData
 
-      Item {
-        id: gridFocus
-        width: parent.width
-        height: gridColumn.height
-        activeFocusOnTab: true
+              Rectangle {
+                required property var modelData
+                width: gridColumn.width / 7
+                height: Style.space(28)
+                radius: Style.cornerRadius
+                color: modelData.key === root.cursorKey || modelData.selected
+                  ? Util.alpha(root.foreground, 0.10)
+                  : "transparent"
+                border.width: modelData.today ? 1 : 0
+                border.color: Util.alpha(root.foreground, 0.45)
 
-        Keys.priority: Keys.BeforeItem
-        Keys.onPressed: function(event) {
-          var text = event.text
-          if (event.key === Qt.Key_Escape) {
-            popup.close()
-            event.accepted = true
-          } else if (event.key === Qt.Key_Left || text === "h" || text === "H") {
-            root.moveCursor(-1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Right || text === "l" || text === "L") {
-            root.moveCursor(1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Up || text === "k" || text === "K") {
-            root.moveCursor(-7)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Down || text === "j" || text === "J") {
-            root.moveCursor(7)
-            event.accepted = true
-          } else if (event.key === Qt.Key_PageUp) {
-            root.moveMonth(-1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_PageDown) {
-            root.moveMonth(1)
-            event.accepted = true
-          } else if (text === "t" || text === "T") {
-            root.jumpToday()
-            event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            root.selectKey(root.cursorKey)
-            event.accepted = true
-          }
-        }
+                Text {
+                  anchors.centerIn: parent
+                  text: modelData.day
+                  color: modelData.inMonth ? root.foreground : Util.alpha(root.foreground, 0.38)
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.body
+                  font.bold: modelData.selected || modelData.today
+                }
 
-        Column {
-          id: gridColumn
-          width: parent.width
-          spacing: Style.space(2)
-
-          Repeater {
-            model: root.weeks
-
-            Row {
-              required property var modelData
-              width: gridColumn.width
-              Repeater {
-                model: parent.modelData
-
-                Rectangle {
-                  required property var modelData
-                  width: gridColumn.width / 7
-                  height: Style.space(28)
-                  radius: Style.cornerRadius
-                  color: modelData.key === root.cursorKey || modelData.selected
-                    ? Util.alpha(root.foreground, 0.10)
-                    : "transparent"
-                  border.width: modelData.today ? 1 : 0
-                  border.color: Util.alpha(root.foreground, 0.45)
-
-                  Text {
-                    anchors.centerIn: parent
-                    text: modelData.day
-                    color: modelData.inMonth ? root.foreground : Util.alpha(root.foreground, 0.38)
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.body
-                    font.bold: modelData.selected || modelData.today
-                  }
-
-                  MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onEntered: root.cursorKey = parent.modelData.key
-                    onClicked: root.selectKey(parent.modelData.key)
-                  }
+                MouseArea {
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onEntered: root.cursorKey = parent.modelData.key
+                  onClicked: root.selectKey(parent.modelData.key)
                 }
               }
             }

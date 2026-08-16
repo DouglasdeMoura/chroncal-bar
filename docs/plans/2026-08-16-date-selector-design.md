@@ -10,7 +10,7 @@ Replace the date `TextField` with a **Dropdown-style date picker**: a full-width
 
 - **Appearance:** the trigger uses the same chrome as the other editor fields. The open grid uses Omarchy popup surface tokens, clock-style month chevrons, today outlined, the selected day filled.
 - **Location:** the DATE row becomes full width. TIME and DURATION share the next row so the calendar is not squeezed into the current 42% column.
-- **Popup host:** Qt Quick Controls `Popup`, the same overlay pattern as Omarchy `Dropdown`. Not `PopupWindow` / `PopupCard` — those are extra layer-shell surfaces and fight `KeyboardPanel`.
+- **Host:** an in-editor month grid that expands under the trigger. A Qt `Popup` reparents onto the overlay and steals Flickable/KeyboardPanel focus, so it is not used. Not `PopupWindow` / `PopupCard` either.
 - **Value:** the picker only writes valid `YYYY-MM-DD` into `dateValue`. Chroncal mutation args stay unchanged.
 - **Keyboard:** Enter/Space opens; arrows (and `h`/`j`/`k`/`l`) move the highlight; PageUp/PageDown change month; `T` jumps to today; Enter commits; Esc closes the picker before it cancels the editor.
 - **Disabled:** timezone-locked edits (`canEditTime` false) show the formatted date and do not open.
