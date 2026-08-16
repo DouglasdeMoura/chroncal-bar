@@ -30,6 +30,7 @@ Panel {
   readonly property bool showingDetails: selectedEvent !== null && !showingEditor
   property bool showingSettings: false
   property bool showingHelp: false
+  readonly property bool showingSubview: showingDetails || showingEditor || showingSettings || showingHelp
   property bool mutationBusy: false
   property string mutationKind: ""
   property string mutationError: ""
@@ -482,44 +483,30 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(4)
 
-            Text {
-              visible: root.showingDetails
-              anchors.verticalCenter: parent.verticalCenter
-              text: "ESC  Back"
-              color: Util.alpha(root.contentForeground, 0.58)
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-            }
-
             PanelActionButton {
-              visible: root.showingEditor
+              visible: root.showingSubview
               iconText: "←"
-              tooltipText: "Cancel and go back"
+              tooltipText: root.showingEditor ? "Cancel and go back" : "Back to agenda"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
-              onClicked: root.cancelEditor()
+              onClicked: {
+                if (deleteConfirm.opened) deleteConfirm.opened = false
+                else if (root.showingEditor) root.cancelEditor()
+                else root.backToAgenda()
+              }
             }
 
             PanelActionButton {
-              visible: !root.showingDetails && !root.showingEditor && !root.showingHelp
-              iconText: root.showingSettings ? "←" : "󰒓"
-              tooltipText: root.showingSettings ? "Back to agenda" : "Calendar settings"
+              visible: !root.showingSubview
+              iconText: "󰒓"
+              tooltipText: "Calendar settings"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: root.toggleSettings()
             }
 
             PanelActionButton {
-              visible: root.showingHelp
-              iconText: "←"
-              tooltipText: "Back to agenda"
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
-              onClicked: root.toggleHelp()
-            }
-
-            PanelActionButton {
-              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp
+              visible: !root.showingSubview
               iconText: "?"
               tooltipText: "Keyboard shortcuts (?)"
               foreground: root.contentForeground
@@ -528,7 +515,7 @@ Panel {
             }
 
             PanelActionButton {
-              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp
+              visible: !root.showingSubview
               iconText: "+"
               tooltipText: "Create event (Shift+N)"
               foreground: root.contentForeground
@@ -537,7 +524,7 @@ Panel {
             }
 
             PanelActionButton {
-              visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp
+              visible: !root.showingSubview
               iconText: "󰑐"
               tooltipText: root.hostWidget && root.hostWidget.loading ? "Refreshing" : "Refresh agenda"
               foreground: root.contentForeground
@@ -696,7 +683,6 @@ Panel {
             eventData: root.selectedEvent || ({})
             actionStatus: root.actionStatus
             busy: root.mutationBusy || root.editLoadBusy
-            onBackRequested: root.backToAgenda()
             onJoinRequested: root.joinEvent()
             onMapRequested: root.openMap()
             onEmailRequested: root.emailParticipants()

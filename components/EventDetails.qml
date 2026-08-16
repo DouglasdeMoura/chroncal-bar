@@ -12,7 +12,6 @@ Flickable {
   property string actionStatus: ""
   property bool busy: false
 
-  signal backRequested()
   signal joinRequested()
   signal mapRequested()
   signal emailRequested()
@@ -40,30 +39,15 @@ Flickable {
     width: root.width
     spacing: Style.space(12)
 
-    Row {
+    Text {
       width: parent.width
-      spacing: Style.space(8)
-
-      PanelActionButton {
-        iconText: "←"
-        tooltipText: "Back to agenda"
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        focusable: true
-        onClicked: root.backRequested()
-      }
-
-      Text {
-        width: parent.width - Style.space(38)
-        anchors.verticalCenter: parent.verticalCenter
-        text: root.eventData.title || "Untitled"
-        textFormat: Text.PlainText
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.title
-        font.bold: true
-        elide: Text.ElideRight
-      }
+      text: root.eventData.title || "Untitled"
+      textFormat: Text.PlainText
+      color: root.foreground
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.title
+      font.bold: true
+      elide: Text.ElideRight
     }
 
     Rectangle {
