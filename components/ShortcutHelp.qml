@@ -24,7 +24,7 @@ Flickable {
     { keys: "p / b", action: "Previous event" },
     { keys: "T", action: "Jump to today" },
     { keys: "Enter", action: "Open selected event" },
-    { keys: "/", action: "Search events" },
+    { keys: "/", action: "Open search" },
     { keys: "Shift+n", action: "Create event" },
     { keys: "E", action: "Edit event or recurring series" },
     { keys: "D / X", action: "Delete selected event" },

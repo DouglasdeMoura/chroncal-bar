@@ -19,6 +19,7 @@ Panel {
   readonly property var barIdentity: hostWidget || root
   readonly property var agendaData: hostWidget ? hostWidget.filteredAgenda : ({ status: "loading", events: [] })
   property string searchQuery: ""
+  property bool searching: false
   readonly property var visibleEvents: Model.searchEvents(agendaData.events || [], searchQuery)
   readonly property var groups: Model.groupEvents(visibleEvents, agendaData.generated_at || new Date().toISOString())
   readonly property var calendars: hostWidget ? (hostWidget.agendaData.calendars || []) : []
@@ -56,6 +57,7 @@ Panel {
     root.selectedEvent = null
     root.selectedEventKey = ""
     root.searchQuery = ""
+    root.searching = false
     root.editorMode = ""
     root.showingSettings = false
     root.showingHelp = false
@@ -148,7 +150,15 @@ Panel {
 
   function beginSearch() {
     if (showingDetails || showingSettings || showingEditor || showingHelp || agendaData.status !== "ok") return
+    searching = true
     Qt.callLater(function() { searchField.forceActiveFocus() })
+  }
+
+  function endSearch() {
+    searching = false
+    searchQuery = ""
+    searchField.text = ""
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function ensureAgendaItemVisible(item) {
@@ -399,7 +409,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: searchField.activeFocus || root.showingEditor
+      blocked: (root.searching && searchField.activeFocus) || root.showingEditor
       onMoveRequested: function(dx, dy) {
         if (deleteConfirm.opened) {
           if (dx !== 0 || dy !== 0) deleteConfirm.selectedIndex = deleteConfirm.selectedIndex === 0 ? 1 : 0
@@ -411,6 +421,7 @@ Panel {
         if (deleteConfirm.opened) deleteConfirm.opened = false
         else if (root.showingEditor) root.cancelEditor()
         else if (root.showingDetails || root.showingSettings || root.showingHelp) root.backToAgenda()
+        else if (root.searching) root.endSearch()
         else root.close()
       }
       onActivateRequested: {
@@ -546,13 +557,15 @@ Panel {
 
           TextField {
             id: searchField
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok"
+            visible: root.searching && !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok"
+            enabled: visible
+            activeFocusOnPress: visible
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            height: Style.space(34)
+            height: visible ? Style.space(34) : 0
             text: root.searchQuery
-            placeholderText: "Search events  /"
+            placeholderText: "Search events"
             color: root.contentForeground
             placeholderTextColor: Util.alpha(root.contentForeground, 0.46)
             font.family: root.contentFontFamily
@@ -567,7 +580,7 @@ Panel {
                   text = ""
                   root.searchQuery = ""
                 } else {
-                  keyCatcher.forceActiveFocus()
+                  root.endSearch()
                 }
                 event.accepted = true
               } else if (event.key === Qt.Key_Down) {
@@ -615,7 +628,7 @@ Panel {
             id: agendaFlick
             visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length > 0
             anchors.top: searchField.bottom
-            anchors.topMargin: Style.space(10)
+            anchors.topMargin: searchField.visible ? Style.space(10) : 0
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom

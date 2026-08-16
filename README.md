@@ -72,7 +72,7 @@ The second command is optional. It places the widget beside the tray in the righ
 | `p` or `b` | Agenda | Select previous event |
 | `t` | Agenda | Jump to today's first event |
 | `Enter` | Agenda | Open selected event |
-| `/` | Agenda | Focus search |
+| `/` | Agenda | Open search |
 | `Shift+N` | Agenda | Create event |
 | `R` | Agenda | Refresh |
 | `,` | Agenda | Open settings |
