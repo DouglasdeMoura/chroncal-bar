@@ -678,6 +678,7 @@ Panel {
 
           EventDetails {
             visible: root.showingDetails
+            enabled: !deleteConfirm.opened
             anchors.fill: parent
             bar: root.bar
             eventData: root.selectedEvent || ({})
@@ -732,19 +733,20 @@ Panel {
             onCloseRequested: root.toggleHelp()
           }
 
-          ConfirmDialog {
-            id: deleteConfirm
-            anchors.fill: parent
-            z: 20
-            message: "Delete “" + String(root.selectedEvent ? root.selectedEvent.title : "this event") + "”?"
-            confirmText: "Delete"
-            background: root.bar ? root.bar.background : Color.background
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
-            onCanceled: opened = false
-            onConfirmed: root.confirmDelete()
-          }
         }
+      }
+
+      ConfirmDialog {
+        id: deleteConfirm
+        anchors.fill: parent
+        z: 20
+        message: "Delete “" + String(root.selectedEvent ? root.selectedEvent.title : "this event") + "”?"
+        confirmText: "Delete"
+        background: root.bar ? root.bar.background : Color.background
+        foreground: root.contentForeground
+        fontFamily: root.contentFontFamily
+        onCanceled: opened = false
+        onConfirmed: root.confirmDelete()
       }
     }
   }

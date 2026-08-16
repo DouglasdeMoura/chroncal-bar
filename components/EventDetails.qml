@@ -275,7 +275,7 @@ Flickable {
       PanelActionButton {
         iconText: "󰆴"
         tooltipText: root.canMutate ? "Delete event" : "Delete the recurring series in Chroncal"
-        foreground: Color.urgent
+        foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
         enabled: root.canMutate && !root.busy
