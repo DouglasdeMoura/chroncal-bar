@@ -39,7 +39,7 @@ Flickable {
   readonly property var validationErrors: Model.validateEventForm(values())
   readonly property bool canEditTime: editorMode !== "edit" || !eventData || String(eventData.timezone || "") === ""
   readonly property bool canEditRecurrence: editorMode !== "edit" || !eventData || String(eventData.recurrence_id || "") === ""
-  readonly property bool showingRepeatEnds: repeatPreset !== "none" && repeatPreset !== "custom"
+  readonly property bool showingRepeatEnds: repeatPreset !== "none"
   readonly property bool showingCustomRepeat: repeatPreset === "custom"
 
   signal canceled()
@@ -116,6 +116,8 @@ Flickable {
     endsDatePicker.close()
     repeatDropdown.close()
     endsDropdown.close()
+    freqDropdown.close()
+    monthlyDropdown.close()
   }
 
   function submit() {
@@ -135,6 +137,8 @@ Flickable {
       else if (endsDatePicker.opened) endsDatePicker.close()
       else if (repeatDropdown.popupOpen) repeatDropdown.close()
       else if (endsDropdown.popupOpen) endsDropdown.close()
+      else if (freqDropdown.popupOpen) freqDropdown.close()
+      else if (monthlyDropdown.popupOpen) monthlyDropdown.close()
       else root.canceled()
       event.accepted = true
     } else if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
@@ -341,6 +345,117 @@ Flickable {
     }
 
     Column {
+      visible: root.showingCustomRepeat
+      width: parent.width
+      spacing: Style.space(4)
+
+      FieldLabel { text: "REPEAT EVERY" }
+      Row {
+        width: parent.width
+        spacing: Style.space(8)
+
+        NumberField {
+          id: intervalField
+          width: (parent.width - Style.space(8)) * 0.4
+          fieldWidth: width
+          value: root.repeatInterval
+          from: 1
+          to: 99
+          stepSize: 1
+          enabled: !root.busy && root.canEditRecurrence
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onModified: function(value) { root.repeatInterval = value }
+        }
+
+        Dropdown {
+          id: freqDropdown
+          width: (parent.width - Style.space(8)) * 0.6
+          showLabel: false
+          options: Model.frequencyOptions()
+          enabled: !root.busy && root.canEditRecurrence
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onChanged: function(value) { root.repeatFreq = value }
+        }
+      }
+
+      Binding {
+        target: freqDropdown
+        property: "value"
+        value: root.repeatFreq
+      }
+      Binding {
+        target: intervalField.field
+        property: "value"
+        value: root.repeatInterval
+      }
+
+      Column {
+        visible: root.repeatFreq === "WEEKLY"
+        width: parent.width
+        spacing: Style.space(4)
+
+        FieldLabel { text: "ON" }
+        Row {
+          id: weekDaysRow
+          width: parent.width
+          spacing: Style.space(4)
+
+          Repeater {
+            model: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+            FormButton {
+              required property int index
+              required property string modelData
+
+              width: (weekDaysRow.width - weekDaysRow.spacing * 6) / 7
+              text: modelData
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(2)
+              selected: root.repeatWeekDays[index] === true
+              enabled: !root.busy && root.canEditRecurrence
+              onClicked: {
+                var next = root.repeatWeekDays.slice()
+                if (next[index] === true) {
+                  var remaining = 0
+                  for (var i = 0; i < next.length; i++) if (next[i]) remaining += 1
+                  if (remaining <= 1) return
+                }
+                next[index] = !next[index]
+                root.repeatWeekDays = next
+              }
+            }
+          }
+        }
+      }
+
+      Column {
+        visible: root.repeatFreq === "MONTHLY"
+        width: parent.width
+        spacing: Style.space(4)
+
+        FieldLabel { text: "ON" }
+        Dropdown {
+          id: monthlyDropdown
+          width: parent.width
+          showLabel: false
+          options: Model.monthlyOnOptions(root.dateValue)
+          enabled: !root.busy && root.canEditRecurrence
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onChanged: function(value) { root.repeatMonthlyMode = value }
+        }
+
+        Binding {
+          target: monthlyDropdown
+          property: "value"
+          value: root.repeatMonthlyMode
+        }
+      }
+    }
+
+    Column {
       visible: root.showingRepeatEnds
       width: parent.width
       spacing: Style.space(4)
@@ -384,6 +499,17 @@ Flickable {
         fontFamily: root.fontFamily
         onChanged: function(value) { root.repeatUntil = value }
       }
+    }
+
+    Text {
+      visible: root.showingCustomRepeat
+      width: parent.width
+      text: Model.recurrenceRuleSummary(root.recurrenceForm(), root.dateValue)
+      textFormat: Text.PlainText
+      color: Util.alpha(root.foreground, 0.62)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      wrapMode: Text.WordWrap
     }
 
     FieldLabel { text: "CALENDAR" }
