@@ -1073,6 +1073,10 @@ function chroncalLaunchArgs(event) {
   return args;
 }
 
+function showOpenInChroncalEnabled(settings) {
+  return optionEnabled(settings, "showOpenInChroncal", false);
+}
+
 function eventNotesHtml(event, linkColor) {
   var text = event ? String(event.description || "") : "";
   if (text === "") return "";

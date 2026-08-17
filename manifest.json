@@ -106,6 +106,17 @@
           "Off"
         ],
         "defaultValue": "On"
+      },
+      {
+        "key": "showOpenInChroncal",
+        "type": "enum",
+        "label": "Show Open in Chroncal on event details",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "Off",
+        "description": "Shows a button on event details that launches the Chroncal TUI on this event."
       }
     ]
   }

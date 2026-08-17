@@ -746,6 +746,7 @@ Panel {
             nowIso: root.agendaData.generated_at || ""
             actionStatus: root.actionStatus
             busy: root.mutationBusy || root.editLoadBusy
+            showOpenInChroncal: Model.showOpenInChroncalEnabled(root.settings)
             onJoinRequested: root.joinEvent()
             onMapRequested: root.openMap()
             onChroncalRequested: root.openChroncal()
@@ -784,6 +785,7 @@ Panel {
             showAllDay: root.setting("showAllDay", "On")
             showEventsWithoutParticipants: root.setting("showEventsWithoutParticipants", "On")
             showEventsWithoutLocation: root.setting("showEventsWithoutLocation", "On")
+            showOpenInChroncal: root.setting("showOpenInChroncal", "Off")
             onConfigurationChanged: function(values) { root.persistSettings(values) }
           }
 

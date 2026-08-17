@@ -13,6 +13,7 @@ Item {
   property string nowIso: ""
   property string actionStatus: ""
   property bool busy: false
+  property bool showOpenInChroncal: false
 
   signal joinRequested()
   signal mapRequested()
@@ -303,11 +304,12 @@ Item {
       }
 
       Button {
+        visible: root.showOpenInChroncal
         text: "Open in Chroncal"
         tooltipText: "Open this event in Chroncal"
         bordered: true
         focusable: true
-        enabled: !root.busy
+        enabled: visible && !root.busy
         opacity: enabled ? 1 : 0.55
         foreground: root.foreground
         fontFamily: root.fontFamily

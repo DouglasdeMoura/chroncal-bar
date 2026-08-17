@@ -18,6 +18,7 @@ Flickable {
   property string showAllDay: "On"
   property string showEventsWithoutParticipants: "On"
   property string showEventsWithoutLocation: "On"
+  property string showOpenInChroncal: "Off"
 
   signal configurationChanged(var values)
 
@@ -170,6 +171,26 @@ Flickable {
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.configurationChanged({ showEventsWithoutLocation: root.showEventsWithoutLocation === "Off" ? "On" : "Off" })
+    }
+
+    Text {
+      topPadding: Style.space(6)
+      text: "EVENT DETAILS"
+      color: Util.alpha(root.foreground, 0.52)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      font.bold: true
+      font.letterSpacing: 1
+    }
+
+    Toggle {
+      width: parent.width
+      label: "Open in Chroncal"
+      description: "Shows a button that launches Chroncal on this event"
+      checked: root.showOpenInChroncal !== "Off"
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onClicked: root.configurationChanged({ showOpenInChroncal: root.showOpenInChroncal === "Off" ? "On" : "Off" })
     }
   }
 }

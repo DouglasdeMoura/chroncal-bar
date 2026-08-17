@@ -26,7 +26,7 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Wraps long titles instead of cropping them.
 - Opens maps from an open-link icon at the end of the location name.
 - Shows Join on the left when the event has a link, with Edit and Delete on the right.
-- Opens this event in Chroncal from a labeled button at the end of event details (`chroncal --event`).
+- Optionally shows Open in Chroncal at the end of event details (`chroncal --event`); off by default, with `g` still available.
 - Copies complete event details to the clipboard with `p`.
 - Creates, edits, and deletes Chroncal events without shell interpolation.
 - Preserves omitted fields during edits and never reinterprets unchanged event times.
@@ -110,6 +110,7 @@ Open the agenda and press `C` or `,`, or click Calendar Settings… at the botto
 - Include or exclude all-day events.
 - Include or exclude events without participants.
 - Include or exclude events without a physical location or meeting link.
+- Show or hide the Open in Chroncal button on event details (off by default).
 
 Calendar selection has two states. Default mode selects every current calendar and automatically includes calendars added later. The first checkbox change stores an exact custom selection; selecting none hides every event. Use **Use default (all calendars)** to discard the custom selection and return to automatic default mode.
 
@@ -119,6 +120,7 @@ Settings persist on the widget entry in `~/.config/omarchy/shell.json`. They can
 omarchy bar set douglasdemoura.chroncal-bar interval 60
 omarchy bar set douglasdemoura.chroncal-bar lookaheadDays 7
 omarchy bar set douglasdemoura.chroncal-bar showTitle On
+omarchy bar set douglasdemoura.chroncal-bar showOpenInChroncal On
 omarchy bar set douglasdemoura.chroncal-bar relativeLeadMinutes 10
 ```
 
