@@ -463,6 +463,290 @@ function validateEventForm(values) {
   return errors;
 }
 
+var WEEKDAY_RRULE = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+var REPEAT_PRESET_RULES = {
+  none: "",
+  daily: "FREQ=DAILY",
+  weekly: "FREQ=WEEKLY",
+  biweekly: "FREQ=WEEKLY;INTERVAL=2",
+  monthly: "FREQ=MONTHLY",
+  yearly: "FREQ=YEARLY",
+  weekdays: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+};
+
+function repeatPresetOptions() {
+  return [
+    { value: "none", label: "None" },
+    { value: "daily", label: "Every day" },
+    { value: "weekly", label: "Every week" },
+    { value: "biweekly", label: "Every 2 weeks" },
+    { value: "monthly", label: "Every month" },
+    { value: "yearly", label: "Every year" },
+    { value: "weekdays", label: "Weekdays" },
+    { value: "custom", label: "Custom..." }
+  ];
+}
+
+function frequencyOptions() {
+  return [
+    { value: "DAILY", label: "Day" },
+    { value: "WEEKLY", label: "Week" },
+    { value: "MONTHLY", label: "Month" },
+    { value: "YEARLY", label: "Year" }
+  ];
+}
+
+function endsOptions() {
+  return [
+    { value: "never", label: "Never" },
+    { value: "after", label: "After" },
+    { value: "ondate", label: "On date" }
+  ];
+}
+
+function emptyWeekDays() {
+  return [false, false, false, false, false, false, false];
+}
+
+function addMonthsClamped(date, months) {
+  var last = new Date(date.getFullYear(), date.getMonth() + months + 1, 0).getDate();
+  return new Date(date.getFullYear(), date.getMonth() + months, Math.min(date.getDate(), last));
+}
+
+function defaultRecurrenceForm(startDateValue) {
+  var date = parseDateInput(startDateValue) || new Date();
+  var weekDays = emptyWeekDays();
+  weekDays[date.getDay()] = true;
+  return {
+    preset: "none",
+    interval: 1,
+    freq: "WEEKLY",
+    weekDays: weekDays,
+    monthlyMode: "date",
+    ends: "never",
+    count: 1,
+    until: formatDateInput(addMonthsClamped(date, 3))
+  };
+}
+
+function cloneRecurrenceForm(form) {
+  var source = form || defaultRecurrenceForm("");
+  var next = {};
+  for (var key in source) next[key] = source[key];
+  next.weekDays = (source.weekDays || emptyWeekDays()).slice();
+  return next;
+}
+
+function rruleParamMap(rule) {
+  var map = {};
+  var parts = String(rule || "").split(";");
+  for (var i = 0; i < parts.length; i++) {
+    var cut = parts[i].split("=");
+    if (cut.length < 2) continue;
+    map[String(cut[0] || "").toUpperCase().trim()] = cut.slice(1).join("=").trim();
+  }
+  return map;
+}
+
+function recurrenceBaseRule(rule) {
+  var parts = String(rule || "").split(";");
+  var kept = [];
+  for (var i = 0; i < parts.length; i++) {
+    var upper = parts[i].toUpperCase();
+    if (upper.indexOf("COUNT=") === 0 || upper.indexOf("UNTIL=") === 0) continue;
+    if (parts[i] !== "") kept.push(parts[i]);
+  }
+  return kept.join(";");
+}
+
+function formatRRuleUntil(value) {
+  var date = parseDateInput(value);
+  if (!date) return "";
+  var end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 0);
+  return String(end.getUTCFullYear()) + pad2(end.getUTCMonth() + 1) + pad2(end.getUTCDate()) + "T" +
+    pad2(end.getUTCHours()) + pad2(end.getUTCMinutes()) + pad2(end.getUTCSeconds()) + "Z";
+}
+
+function parseRRuleUntil(value) {
+  var text = String(value || "");
+  if (/^\d{8}T\d{6}Z$/.test(text)) {
+    return parseDate(
+      text.slice(0, 4) + "-" + text.slice(4, 6) + "-" + text.slice(6, 8) + "T" +
+      text.slice(9, 11) + ":" + text.slice(11, 13) + ":" + text.slice(13, 15) + "Z"
+    );
+  }
+  if (/^\d{8}$/.test(text)) {
+    return parseDateInput(text.slice(0, 4) + "-" + text.slice(4, 6) + "-" + text.slice(6, 8));
+  }
+  return null;
+}
+
+function nthWeekdayOf(date) {
+  return {
+    nth: Math.floor((date.getDate() - 1) / 7) + 1,
+    day: WEEKDAY_RRULE[date.getDay()]
+  };
+}
+
+function nthWeekdayLabel(date) {
+  var nth = nthWeekdayOf(date).nth;
+  var ordinals = ["", "1st", "2nd", "3rd", "4th", "5th"];
+  var ord = nth > 0 && nth < ordinals.length ? ordinals[nth] : "nth";
+  var weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return ord + " " + weekdays[date.getDay()];
+}
+
+function monthlyOnOptions(startDateValue) {
+  var date = parseDateInput(startDateValue) || new Date();
+  return [
+    { value: "date", label: "Day " + date.getDate() },
+    { value: "nth", label: nthWeekdayLabel(date) }
+  ];
+}
+
+function parseRecurrenceRule(rule, startDateValue) {
+  var form = defaultRecurrenceForm(startDateValue);
+  var text = String(rule || "").trim();
+  if (text === "") return form;
+  var parts = rruleParamMap(text);
+  var freq = String(parts.FREQ || "").toUpperCase();
+  if (freq === "DAILY" || freq === "WEEKLY" || freq === "MONTHLY" || freq === "YEARLY") form.freq = freq;
+  var interval = Number(parts.INTERVAL || "1");
+  if (interval >= 1) form.interval = interval;
+  if (parts.COUNT) {
+    form.ends = "after";
+    form.count = Number(parts.COUNT) || 1;
+  } else if (parts.UNTIL) {
+    form.ends = "ondate";
+    var untilDate = parseRRuleUntil(parts.UNTIL);
+    if (untilDate) form.until = formatDateInput(untilDate);
+  }
+  if (parts.BYDAY) {
+    var days = String(parts.BYDAY).split(",");
+    var weekDays = emptyWeekDays();
+    var sawNth = false;
+    for (var i = 0; i < days.length; i++) {
+      var code = String(days[i] || "").toUpperCase().trim();
+      var dayPart = code.replace(/^[+-]?\d+/, "");
+      if (dayPart !== code) sawNth = true;
+      for (var w = 0; w < 7; w++) if (WEEKDAY_RRULE[w] === dayPart) weekDays[w] = true;
+    }
+    form.weekDays = weekDays;
+    if (form.freq === "MONTHLY" && sawNth) form.monthlyMode = "nth";
+  }
+  var base = recurrenceBaseRule(text);
+  var presets = ["daily", "weekly", "biweekly", "monthly", "yearly", "weekdays"];
+  for (var p = 0; p < presets.length; p++) {
+    if (base.toUpperCase() === REPEAT_PRESET_RULES[presets[p]].toUpperCase()) {
+      form.preset = presets[p];
+      return form;
+    }
+  }
+  form.preset = "custom";
+  return form;
+}
+
+function appendRecurrenceEnds(rule, form) {
+  if (String(form.ends || "never") === "after") {
+    var count = Number(form.count || 0);
+    if (count >= 1) return rule + ";COUNT=" + String(Math.floor(count));
+  }
+  if (String(form.ends || "never") === "ondate") {
+    var until = formatRRuleUntil(form.until);
+    if (until !== "") return rule + ";UNTIL=" + until;
+  }
+  return rule;
+}
+
+function buildRecurrenceRule(form, startDateValue) {
+  var rec = form || defaultRecurrenceForm(startDateValue);
+  var preset = String(rec.preset || "none");
+  if (preset === "none") return "";
+  if (preset !== "custom") {
+    var presetRule = REPEAT_PRESET_RULES[preset] || "";
+    return presetRule === "" ? "" : appendRecurrenceEnds(presetRule, rec);
+  }
+  var freq = String(rec.freq || "WEEKLY").toUpperCase();
+  if (freq !== "DAILY" && freq !== "WEEKLY" && freq !== "MONTHLY" && freq !== "YEARLY") freq = "WEEKLY";
+  var rule = "FREQ=" + freq;
+  var interval = Number(rec.interval || 1);
+  if (interval > 1) rule += ";INTERVAL=" + String(Math.floor(interval));
+  if (freq === "WEEKLY") {
+    var days = [];
+    var weekDays = rec.weekDays || [];
+    for (var i = 0; i < 7; i++) if (weekDays[i]) days.push(WEEKDAY_RRULE[i]);
+    if (days.length > 0) rule += ";BYDAY=" + days.join(",");
+  } else if (freq === "MONTHLY" && rec.monthlyMode === "nth") {
+    var start = parseDateInput(startDateValue);
+    if (start) {
+      var nth = nthWeekdayOf(start);
+      rule += ";BYDAY=" + String(nth.nth) + nth.day;
+    }
+  }
+  return appendRecurrenceEnds(rule, rec);
+}
+
+function applyRepeatPreset(form, nextPreset, startDateValue) {
+  var current = cloneRecurrenceForm(form || defaultRecurrenceForm(startDateValue));
+  var preset = String(nextPreset || "none");
+  if (preset === "custom" && current.preset !== "custom") {
+    var parsed = parseRecurrenceRule(buildRecurrenceRule(current, startDateValue), startDateValue);
+    parsed.preset = "custom";
+    return parsed;
+  }
+  current.preset = preset;
+  return current;
+}
+
+function validateRecurrenceForm(form, startDateValue) {
+  var rec = form || defaultRecurrenceForm(startDateValue);
+  var errors = [];
+  if (String(rec.preset || "none") === "none") return errors;
+  if (String(rec.preset) === "custom") {
+    if (!(Number(rec.interval) >= 1)) errors.push("Repeat interval must be at least 1");
+  }
+  if (String(rec.ends) === "after" && !(Number(rec.count) >= 1)) errors.push("Ends after count must be at least 1");
+  if (String(rec.ends) === "ondate") {
+    var until = parseDateInput(rec.until);
+    var start = parseDateInput(startDateValue);
+    if (!until) errors.push("End date must use YYYY-MM-DD");
+    else if (start && until < start) errors.push("End date must be on or after the start date");
+  }
+  return errors;
+}
+
+function recurrenceRuleSummary(form, startDateValue) {
+  var rec = form || defaultRecurrenceForm(startDateValue);
+  var preset = String(rec.preset || "none");
+  if (preset === "none") return "Does not repeat";
+  if (preset !== "custom") {
+    var options = repeatPresetOptions();
+    for (var i = 0; i < options.length; i++) if (options[i].value === preset) return options[i].label;
+  }
+  var freqLabels = { DAILY: ["Daily", "day", "days"], WEEKLY: ["Weekly", "week", "weeks"], MONTHLY: ["Monthly", "month", "months"], YEARLY: ["Yearly", "year", "years"] };
+  var freq = String(rec.freq || "WEEKLY").toUpperCase();
+  var names = freqLabels[freq] || freqLabels.WEEKLY;
+  var interval = Number(rec.interval || 1);
+  var summary = interval === 1 ? names[0] : "Every " + String(Math.floor(interval)) + " " + names[2];
+  if (freq === "WEEKLY") {
+    var labels = [];
+    var weekDays = rec.weekDays || [];
+    var weekdayShort = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+    for (var d = 0; d < 7; d++) if (weekDays[d]) labels.push(weekdayShort[d]);
+    if (labels.length > 0 && labels.length < 7) summary += " on " + labels.join(", ");
+  }
+  if (freq === "MONTHLY" && rec.monthlyMode === "nth") {
+    var start = parseDateInput(startDateValue);
+    if (start) summary += " on " + nthWeekdayLabel(start);
+  }
+  return summary;
+}
+
+function canEditRecurrence(event) {
+  if (!event) return true;
+  return String(event.recurrence_id || "") === "";
+}
+
 function presentValue(value) {
   return value !== undefined && value !== null && String(value) !== "";
 }

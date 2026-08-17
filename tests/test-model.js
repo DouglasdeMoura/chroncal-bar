@@ -359,3 +359,79 @@ assert.doesNotMatch(timeOnly.text, /Current/);
 assert.match(timeOnly.text, /left|Now/);
 
 console.log("agenda model tests: ok");
+
+const recurrenceStart = "2026-08-19"; // Wednesday
+assert.deepEqual(model.repeatPresetOptions().map(option => option.label), [
+  "None", "Every day", "Every week", "Every 2 weeks", "Every month", "Every year", "Weekdays", "Custom..."
+]);
+
+const emptyRecurrence = model.defaultRecurrenceForm(recurrenceStart);
+assert.equal(emptyRecurrence.preset, "none");
+assert.equal(emptyRecurrence.freq, "WEEKLY");
+assert.equal(emptyRecurrence.interval, 1);
+assert.deepEqual(emptyRecurrence.weekDays, [false, false, false, true, false, false, false]);
+assert.equal(emptyRecurrence.monthlyMode, "date");
+assert.equal(emptyRecurrence.ends, "never");
+assert.equal(emptyRecurrence.until, "2026-11-19");
+assert.equal(model.buildRecurrenceRule(emptyRecurrence, recurrenceStart), "");
+
+assert.equal(model.parseRecurrenceRule("FREQ=DAILY", recurrenceStart).preset, "daily");
+assert.equal(model.parseRecurrenceRule("FREQ=WEEKLY;INTERVAL=2", recurrenceStart).preset, "biweekly");
+assert.equal(model.parseRecurrenceRule("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", recurrenceStart).preset, "weekdays");
+assert.equal(model.parseRecurrenceRule("FREQ=DAILY;COUNT=10", recurrenceStart).preset, "daily");
+assert.equal(model.parseRecurrenceRule("FREQ=DAILY;COUNT=10", recurrenceStart).ends, "after");
+assert.equal(model.parseRecurrenceRule("FREQ=DAILY;COUNT=10", recurrenceStart).count, 10);
+assert.equal(model.buildRecurrenceRule(model.parseRecurrenceRule("FREQ=DAILY;COUNT=10", recurrenceStart), recurrenceStart), "FREQ=DAILY;COUNT=10");
+
+const untilForm = model.parseRecurrenceRule("FREQ=WEEKLY;UNTIL=20261116T235959Z", recurrenceStart);
+assert.equal(untilForm.preset, "weekly");
+assert.equal(untilForm.ends, "ondate");
+assert.equal(untilForm.until, "2026-11-16");
+assert.equal(model.formatRRuleUntil("2026-11-16"), "20261116T235959Z");
+assert.equal(model.buildRecurrenceRule(untilForm, recurrenceStart), "FREQ=WEEKLY;UNTIL=20261116T235959Z");
+
+const customWeekly = model.parseRecurrenceRule("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE", recurrenceStart);
+assert.equal(customWeekly.preset, "custom");
+assert.equal(customWeekly.freq, "WEEKLY");
+assert.equal(customWeekly.interval, 2);
+assert.deepEqual(customWeekly.weekDays, [false, true, false, true, false, false, false]);
+assert.equal(model.buildRecurrenceRule(customWeekly, recurrenceStart), "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE");
+
+const customMonthly = model.parseRecurrenceRule("FREQ=MONTHLY;BYDAY=3WE", recurrenceStart);
+assert.equal(customMonthly.preset, "custom");
+assert.equal(customMonthly.monthlyMode, "nth");
+assert.equal(model.buildRecurrenceRule(customMonthly, recurrenceStart), "FREQ=MONTHLY;BYDAY=3WE");
+
+assert.equal(model.buildRecurrenceRule({
+  preset: "custom",
+  freq: "MONTHLY",
+  interval: 1,
+  monthlyMode: "date",
+  ends: "never",
+  weekDays: model.defaultRecurrenceForm(recurrenceStart).weekDays
+}, recurrenceStart), "FREQ=MONTHLY");
+
+const seededCustom = model.applyRepeatPreset(model.parseRecurrenceRule("FREQ=WEEKLY", recurrenceStart), "custom", recurrenceStart);
+assert.equal(seededCustom.preset, "custom");
+assert.equal(seededCustom.freq, "WEEKLY");
+assert.equal(model.buildRecurrenceRule(seededCustom, recurrenceStart), "FREQ=WEEKLY;BYDAY=WE");
+
+assert.deepEqual(model.validateRecurrenceForm(model.defaultRecurrenceForm(recurrenceStart), recurrenceStart), []);
+assert.match(model.validateRecurrenceForm({
+  ...model.defaultRecurrenceForm(recurrenceStart),
+  preset: "custom",
+  interval: 0
+}, recurrenceStart)[0], /interval/i);
+assert.match(model.validateRecurrenceForm({
+  ...model.parseRecurrenceRule("FREQ=DAILY", recurrenceStart),
+  ends: "after",
+  count: 0
+}, recurrenceStart)[0], /count|times/i);
+assert.match(model.validateRecurrenceForm({
+  ...model.parseRecurrenceRule("FREQ=DAILY", recurrenceStart),
+  ends: "ondate",
+  until: "2026-08-18"
+}, recurrenceStart)[0], /end date/i);
+
+assert.match(model.recurrenceRuleSummary(model.parseRecurrenceRule("FREQ=WEEKLY;BYDAY=MO,WE", recurrenceStart), recurrenceStart), /Weekly on Mo, We/);
+assert.equal(model.recurrenceRuleSummary(model.parseRecurrenceRule("FREQ=DAILY", recurrenceStart), recurrenceStart), "Every day");
