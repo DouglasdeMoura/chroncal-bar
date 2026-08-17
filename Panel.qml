@@ -556,7 +556,7 @@ Panel {
             PanelActionButton {
               visible: !root.showingSubview
               iconText: "+"
-              tooltipText: "Create event (Shift+N)"
+              tooltipText: "Create event (c)"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: root.startCreate()
@@ -565,7 +565,7 @@ Panel {
             PanelActionButton {
               visible: !root.showingSubview
               iconText: "󰑐"
-              tooltipText: root.hostWidget && root.hostWidget.loading ? "Refreshing" : "Refresh agenda"
+              tooltipText: root.hostWidget && root.hostWidget.loading ? "Refreshing" : "Refresh agenda (s)"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               enabled: !(root.hostWidget && root.hostWidget.loading)

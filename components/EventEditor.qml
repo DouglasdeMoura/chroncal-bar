@@ -87,6 +87,10 @@ Flickable {
       datePicker.commitIfOpen()
       root.submit()
       event.accepted = true
+    } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_S) {
+      datePicker.commitIfOpen()
+      root.submit()
+      event.accepted = true
     }
   }
 

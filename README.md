@@ -67,29 +67,28 @@ The second command is optional. It places the widget beside the tray in the righ
 
 | Key | Context | Action |
 | --- | --- | --- |
-| `↑` / `↓`, `J` / `K` | Agenda | Move selection |
-| `n` | Agenda | Select next event |
-| `p` or `b` | Agenda | Select previous event |
+| `↑` / `↓`, `j` / `k` | Agenda | Move selection |
+| `←` / `→`, `h` / `l` | Agenda | Previous or next day |
 | `t` | Agenda | Jump to today's first event |
-| `Enter` | Agenda | Open selected event |
+| `Enter` / `Space` | Agenda | Open selected event |
 | `/` | Agenda | Open search |
-| `Shift+N` | Agenda | Create event |
-| `R` | Agenda | Refresh |
-| `,` | Agenda | Open settings |
+| `c` | Agenda or details | Create event |
+| `e` | Agenda or details | Edit event or recurring series |
+| `x` or `Delete` | Agenda or details | Delete this event, this and following, or all events |
+| `v` | Event details | Join or open event URL |
+| `p` | Event details | Copy event details |
+| `g` | Event details | Open Chroncal |
+| `s` | Agenda | Refresh |
+| `C` or `,` | Agenda | Open settings |
 | `?` | Agenda | Open shortcut help |
-| `E` | Event details | Edit event or recurring series |
-| `D` or `X` | Event details | Delete this event, this and following, or all events |
-| `J` | Event details | Join or open event URL |
-| `C` | Event details | Copy event details |
-| `O` | Event details | Open Chroncal |
-| `Ctrl+Enter` | Event editor | Save event or series |
-| `Esc` | Any panel view | Back, cancel, or close |
+| `Ctrl+S` | Event editor | Save event or series |
+| `Esc` or `q` | Any panel view | Back, cancel, or close |
 
 Search opens with `/`. Subviews share one header back arrow. Mouse users can access the other actions through the header and event-detail buttons.
 
 ## Configure
 
-Open the agenda and press `,`, or use the settings button. Available settings:
+Open the agenda and press `C` or `,`, or use the settings button. Available settings:
 
 - Days ahead (1–30) and refresh interval.
 - Maximum bar-title length and the relative-countdown window.

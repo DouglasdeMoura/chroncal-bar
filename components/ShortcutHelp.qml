@@ -19,22 +19,22 @@ Flickable {
   ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
   readonly property var entries: [
-    { keys: "↑ / ↓   J / K", action: "Move selection" },
-    { keys: "n", action: "Next event" },
-    { keys: "p / b", action: "Previous event" },
-    { keys: "T", action: "Jump to today" },
-    { keys: "Enter", action: "Open selected event" },
+    { keys: "↑ / ↓   j / k", action: "Move selection" },
+    { keys: "← / →   h / l", action: "Previous or next day" },
+    { keys: "t", action: "Jump to today" },
+    { keys: "Enter / Space", action: "Open selected event" },
     { keys: "/", action: "Open search" },
-    { keys: "Shift+n", action: "Create event" },
-    { keys: "E", action: "Edit event or recurring series" },
-    { keys: "D / X", action: "Delete this event, this and following, or all events" },
-    { keys: "J", action: "Join selected event" },
-    { keys: "C", action: "Copy event details" },
-    { keys: "O", action: "Open Chroncal" },
-    { keys: "R", action: "Refresh agenda" },
-    { keys: ",", action: "Calendar settings" },
-    { keys: "Ctrl+Enter", action: "Save event" },
-    { keys: "Esc", action: "Back or close" }
+    { keys: "c", action: "Create event" },
+    { keys: "e", action: "Edit event or recurring series" },
+    { keys: "x / Delete", action: "Delete this event, this and following, or all events" },
+    { keys: "v", action: "Join or open event link" },
+    { keys: "p", action: "Copy event details" },
+    { keys: "g", action: "Open Chroncal" },
+    { keys: "s", action: "Refresh agenda" },
+    { keys: "C / ,", action: "Calendar settings" },
+    { keys: "?", action: "Open shortcut help" },
+    { keys: "Ctrl+S", action: "Save event or series" },
+    { keys: "Esc / q", action: "Back or close" }
   ]
 
   Column {
