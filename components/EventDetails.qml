@@ -16,7 +16,6 @@ Item {
 
   signal joinRequested()
   signal mapRequested()
-  signal copyRequested()
   signal chroncalRequested()
   signal editRequested()
   signal deleteRequested()
@@ -348,16 +347,6 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         spacing: Style.space(18)
-
-        PanelActionButton {
-          iconText: "󰆏"
-          tooltipText: "Copy event details"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          focusable: true
-          enabled: !root.busy
-          onClicked: root.copyRequested()
-        }
 
         PanelActionButton {
           iconText: "󰃭"

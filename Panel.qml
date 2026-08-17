@@ -748,7 +748,6 @@ Panel {
             busy: root.mutationBusy || root.editLoadBusy
             onJoinRequested: root.joinEvent()
             onMapRequested: root.openMap()
-            onCopyRequested: root.copyEventDetails()
             onChroncalRequested: root.openChroncal()
             onEditRequested: root.startEdit()
             onDeleteRequested: root.requestDelete()
