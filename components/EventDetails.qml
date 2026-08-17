@@ -325,13 +325,18 @@ Item {
       width: parent.width
       spacing: Style.space(18)
 
-      PanelActionButton {
-        iconText: "󰏌"
+      Button {
+        text: "Join"
         tooltipText: "Join or open event link"
-        foreground: root.foreground
-        fontFamily: root.fontFamily
+        bordered: true
         focusable: true
         enabled: Model.eventOpenUrl(root.eventData) !== "" && !root.busy
+        opacity: enabled ? 1 : 0.55
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        fontSize: Style.font.bodySmall
+        horizontalPadding: Style.space(8)
+        verticalPadding: Style.space(3)
         onClicked: root.joinRequested()
       }
 
