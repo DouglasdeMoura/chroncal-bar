@@ -134,6 +134,10 @@ assert.match(coloredNotes, /<font color="#644AC9">https:\/\/tel\.meet\/ssq-outo-
 assert.equal(model.eventNotesHtml(meetNotesEvent, "javascript:alert(1)"), notesHtml);
 assert.match(model.eventAttributes({ status: "CONFIRMED", class: "PRIVATE", transp: "TRANSPARENT", recurrence_rule: "FREQ=WEEKLY" }), /Confirmed · Private · Free · Recurring/);
 assert.equal(model.eventMapUrl(detailedEvent), "https://www.google.com/maps/search/?api=1&query=Rua%20Exemplo%2010%2C%20Curitiba");
+assert.deepEqual(model.chroncalLaunchArgs(null), ["chroncal"]);
+assert.deepEqual(model.chroncalLaunchArgs({}), ["chroncal"]);
+assert.deepEqual(model.chroncalLaunchArgs({ id: 42, start_time: "2026-04-17T14:00:00Z" }), ["chroncal", "--event", "42", "--at", "2026-04-17T14:00:00Z"]);
+assert.deepEqual(model.chroncalLaunchArgs({ id: 7 }), ["chroncal", "--event", "7"]);
 assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "launch").map(event => event.id), [1]);
 assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "alice").map(event => event.id), [1]);
 assert.deepEqual(model.searchEvents([{ ...detailedEvent, calendar_name: "Work" }, events[1]], "work").map(event => event.id), [1]);

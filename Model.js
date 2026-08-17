@@ -1062,6 +1062,17 @@ function eventOpenUrl(event) {
   return rewriteOpenUrl(url, event);
 }
 
+function chroncalLaunchArgs(event) {
+  var args = ["chroncal"];
+  if (!event) return args;
+  var id = event.id;
+  if (id === undefined || id === null || String(id) === "") return args;
+  args.push("--event", String(id));
+  var at = String(event.start_time || "").trim();
+  if (at !== "") args.push("--at", at);
+  return args;
+}
+
 function eventNotesHtml(event, linkColor) {
   var text = event ? String(event.description || "") : "";
   if (text === "") return "";

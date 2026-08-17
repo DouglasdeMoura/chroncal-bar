@@ -29,7 +29,7 @@ Flickable {
     { keys: "x / Delete", action: "Delete this event, this and following, or all events" },
     { keys: "v", action: "Join or open event link" },
     { keys: "p", action: "Copy event details" },
-    { keys: "g", action: "Open Chroncal" },
+    { keys: "g", action: "Open this event in Chroncal" },
     { keys: "y / n / m", action: "RSVP yes, no, or maybe" },
     { keys: "s", action: "Refresh agenda" },
     { keys: "C / ,", action: "Calendar settings" },

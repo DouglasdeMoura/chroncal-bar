@@ -460,7 +460,7 @@ Panel {
 
   function openChroncal() {
     if (mutationBusy || editLoadBusy) return
-    Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "chroncal"])
+    Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation"].concat(Model.chroncalLaunchArgs(selectedEvent)))
     root.close()
   }
 

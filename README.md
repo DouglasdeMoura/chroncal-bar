@@ -26,6 +26,7 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Wraps long titles instead of cropping them.
 - Opens maps from an open-link icon at the end of the location name.
 - Shows Join on the left when the event has a link, with the other footer icons on the right.
+- Opens Chroncal on the selected event (`chroncal --event`).
 - Copies complete event details to the clipboard with `p`.
 - Creates, edits, and deletes Chroncal events without shell interpolation.
 - Preserves omitted fields during edits and never reinterprets unchanged event times.
@@ -45,6 +46,7 @@ This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sen
 - Omarchy Quattro
 - Chroncal 0.7.4 or newer on `PATH`
 - A Chroncal build that includes `chroncal event rsvp` for Yes/No/Maybe replies (not in 0.7.4)
+- A Chroncal build that includes `chroncal --event` to open the TUI on the selected event
 - `bash`, `jq`, GNU `date`, and GNU `timeout`
 - `xdg-open` for links and maps
 - `wl-copy` for copy actions
@@ -87,7 +89,7 @@ The second command is optional. It places the widget beside the tray in the righ
 | `x` or `Delete` | Agenda or details | Delete this event, this and following, or all events |
 | `v` | Event details | Join or open event URL |
 | `p` | Event details | Copy event details |
-| `g` | Event details | Open Chroncal |
+| `g` | Event details | Open this event in Chroncal |
 | `y` / `n` / `m` | Event details | RSVP yes, no, or maybe |
 | `s` | Agenda | Refresh |
 | `C` or `,` | Agenda | Open settings |

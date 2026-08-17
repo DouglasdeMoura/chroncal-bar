@@ -350,7 +350,7 @@ Item {
 
         PanelActionButton {
           iconText: "󰃭"
-          tooltipText: "Open Chroncal"
+          tooltipText: "Open this event in Chroncal"
           foreground: root.foreground
           fontFamily: root.fontFamily
           focusable: true
