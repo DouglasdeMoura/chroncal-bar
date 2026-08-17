@@ -24,12 +24,23 @@ Flickable {
   property string calendarValue: ""
   property string locationValue: ""
   property string descriptionValue: ""
+  property string repeatPreset: "none"
+  property int repeatInterval: 1
+  property string repeatFreq: "WEEKLY"
+  property var repeatWeekDays: [false, false, false, false, false, false, false]
+  property string repeatMonthlyMode: "date"
+  property string repeatEnds: "never"
+  property int repeatCount: 1
+  property string repeatUntil: ""
   property bool submitAttempted: false
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var validationErrors: Model.validateEventForm(values())
   readonly property bool canEditTime: editorMode !== "edit" || !eventData || String(eventData.timezone || "") === ""
+  readonly property bool canEditRecurrence: editorMode !== "edit" || !eventData || String(eventData.recurrence_id || "") === ""
+  readonly property bool showingRepeatEnds: repeatPreset !== "none" && repeatPreset !== "custom"
+  readonly property bool showingCustomRepeat: repeatPreset === "custom"
 
   signal canceled()
   signal submitted(var values)
@@ -43,7 +54,17 @@ Flickable {
       allDay: allDay,
       calendar: calendarValue,
       location: locationValue,
-      description: descriptionValue
+      description: descriptionValue,
+      recurrence: {
+        preset: repeatPreset,
+        interval: repeatInterval,
+        freq: repeatFreq,
+        weekDays: repeatWeekDays,
+        monthlyMode: repeatMonthlyMode,
+        ends: repeatEnds,
+        count: repeatCount,
+        until: repeatUntil
+      }
     }
   }
 
@@ -63,8 +84,38 @@ Flickable {
     calendarValue = initial.calendar || defaultCalendarName()
     locationValue = initial.location
     descriptionValue = initial.description
+    var rec = initial.recurrence || Model.defaultRecurrenceForm(initial.date)
+    repeatPreset = rec.preset
+    repeatInterval = rec.interval
+    repeatFreq = rec.freq
+    repeatWeekDays = rec.weekDays.slice()
+    repeatMonthlyMode = rec.monthlyMode
+    repeatEnds = rec.ends
+    repeatCount = rec.count
+    repeatUntil = rec.until
     submitAttempted = false
     Qt.callLater(function() { titleField.forceActiveFocus() })
+  }
+
+  function recurrenceForm() { return values().recurrence }
+
+  function applyRepeatPreset(value) {
+    var next = Model.applyRepeatPreset(recurrenceForm(), value, root.dateValue)
+    repeatPreset = next.preset
+    repeatInterval = next.interval
+    repeatFreq = next.freq
+    repeatWeekDays = next.weekDays.slice()
+    repeatMonthlyMode = next.monthlyMode
+    repeatEnds = next.ends
+    repeatCount = next.count
+    repeatUntil = next.until
+  }
+
+  function closePickers() {
+    datePicker.close()
+    endsDatePicker.close()
+    repeatDropdown.close()
+    endsDropdown.close()
   }
 
   function submit() {
@@ -74,21 +125,26 @@ Flickable {
 
   onVisibleChanged: {
     if (visible) initialize()
-    else datePicker.close()
+    else closePickers()
   }
 
   Keys.priority: Keys.BeforeItem
   Keys.onPressed: function(event) {
     if (event.key === Qt.Key_Escape) {
       if (datePicker.opened) datePicker.close()
+      else if (endsDatePicker.opened) endsDatePicker.close()
+      else if (repeatDropdown.popupOpen) repeatDropdown.close()
+      else if (endsDropdown.popupOpen) endsDropdown.close()
       else root.canceled()
       event.accepted = true
     } else if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
       datePicker.commitIfOpen()
+      endsDatePicker.commitIfOpen()
       root.submit()
       event.accepted = true
     } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_S) {
       datePicker.commitIfOpen()
+      endsDatePicker.commitIfOpen()
       root.submit()
       event.accepted = true
     }
@@ -252,6 +308,81 @@ Flickable {
       fontFamily: root.fontFamily
       onClicked: {
         if (root.editorMode !== "edit") root.allDay = root.allDay ? false : true
+      }
+    }
+
+    FieldLabel { text: "REPEAT" }
+    Dropdown {
+      id: repeatDropdown
+      width: parent.width
+      showLabel: false
+      options: Model.repeatPresetOptions()
+      enabled: !root.busy && root.canEditRecurrence
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onChanged: function(value) { root.applyRepeatPreset(value) }
+    }
+
+    Binding {
+      target: repeatDropdown
+      property: "value"
+      value: root.repeatPreset
+    }
+
+    Text {
+      visible: !root.canEditRecurrence
+      width: parent.width
+      text: "Open the series editor to change Repeat. This override keeps the series rule."
+      textFormat: Text.PlainText
+      color: Util.alpha(root.foreground, 0.56)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      wrapMode: Text.WordWrap
+    }
+
+    Column {
+      visible: root.showingRepeatEnds
+      width: parent.width
+      spacing: Style.space(4)
+      FieldLabel { text: "ENDS" }
+      Dropdown {
+        id: endsDropdown
+        width: parent.width
+        showLabel: false
+        options: Model.endsOptions()
+        enabled: !root.busy && root.canEditRecurrence
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        onChanged: function(value) { root.repeatEnds = value }
+      }
+
+      Binding {
+        target: endsDropdown
+        property: "value"
+        value: root.repeatEnds
+      }
+      NumberField {
+        visible: root.repeatEnds === "after"
+        width: parent.width
+        label: "Times"
+        value: root.repeatCount
+        from: 1
+        to: 999
+        stepSize: 1
+        enabled: !root.busy && root.canEditRecurrence
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        onModified: function(value) { root.repeatCount = value }
+      }
+      DatePicker {
+        id: endsDatePicker
+        visible: root.repeatEnds === "ondate"
+        width: parent.width
+        value: root.repeatUntil
+        enabled: !root.busy && root.canEditRecurrence
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        onChanged: function(value) { root.repeatUntil = value }
       }
     }
 
