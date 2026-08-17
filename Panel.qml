@@ -45,6 +45,7 @@ Panel {
   property var editLoadSourceEvent: null
   property string editLoadStdoutText: ""
   property string editLoadStderrText: ""
+  property var pendingDeleteEvent: null
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
@@ -62,6 +63,7 @@ Panel {
     root.showingSettings = false
     root.showingHelp = false
     root.resetEditState()
+    root.pendingDeleteEvent = null
     deleteConfirm.opened = false
     root.controller.hide()
   }
@@ -140,6 +142,35 @@ Panel {
     var current = selectedEventIndex()
     var next = current < 0 ? (step > 0 ? 0 : visibleEvents.length - 1) : Model.clampSelection(current + step, visibleEvents.length)
     selectedEventKey = Model.eventKey(visibleEvents[next])
+  }
+
+  function focusedEvent() {
+    if (selectedEvent) return selectedEvent
+    if (showingSettings || showingHelp || showingEditor) return null
+    var current = selectedEventIndex()
+    if (current < 0) return null
+    return visibleEvents[current]
+  }
+
+  function moveSelectionByDay(direction) {
+    if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
+    var index = Model.adjacentDayFirstEventIndex(visibleEvents, selectedEventIndex(), direction)
+    if (index >= 0) selectedEventKey = Model.eventKey(visibleEvents[index])
+  }
+
+  function handleClose() {
+    if (deleteConfirm.opened) {
+      deleteConfirm.opened = false
+      pendingDeleteEvent = null
+    } else if (showingEditor) {
+      cancelEditor()
+    } else if (showingDetails || showingSettings || showingHelp) {
+      backToAgenda()
+    } else if (searching) {
+      endSearch()
+    } else {
+      close()
+    }
   }
 
   function activateSelection() {
@@ -222,15 +253,16 @@ Panel {
   }
 
   function startEdit() {
-    if (!selectedEvent || !Model.canEditEvent(selectedEvent)) return
+    var event = focusedEvent()
+    if (!event || !Model.canEditEvent(event) || showingSettings || showingHelp) return
     if (mutationBusy || editLoadBusy) return
-    var direct = Model.canMutateEvent(selectedEvent)
-    var lookupArgs = direct ? [] : Model.seriesMasterLookupArgs(selectedEvent)
+    var direct = Model.canMutateEvent(event)
+    var lookupArgs = direct ? [] : Model.seriesMasterLookupArgs(event)
     if (!direct && lookupArgs.length === 0) return
     showingSettings = false
     showingHelp = false
     if (direct) {
-      openEditor(selectedEvent, false)
+      openEditor(event, false)
       return
     }
     if (!hostWidget || !hostWidget.chroncalExecScript) {
@@ -238,8 +270,8 @@ Panel {
       actionStatusTimer.restart()
       return
     }
-    editLoadSourceEvent = selectedEvent
-    editLoadEventKey = Model.eventKey(selectedEvent)
+    editLoadSourceEvent = event
+    editLoadEventKey = Model.eventKey(event)
     editLoadRequested = true
     editLoadBusy = true
     editLoadStdoutText = ""
@@ -256,8 +288,9 @@ Panel {
     var source = editLoadSourceEvent
     var requestedKey = editLoadEventKey
     editLoadRequested = false
-    if (!requested || !root.opened || !selectedEvent) return
-    if (Model.eventKey(selectedEvent) !== requestedKey || !source) return
+    if (!requested || !root.opened || !source) return
+    if (Model.eventKey(source) !== requestedKey) return
+    if (selectedEvent && Model.eventKey(selectedEvent) !== requestedKey) return
     if (exitCode !== 0) {
       var failure = String(editLoadStderrText).trim()
       if (failure === "") failure = String(editLoadStdoutText).trim()
@@ -302,8 +335,10 @@ Panel {
   }
 
   function requestDelete() {
-    if (!selectedEvent || mutationBusy || editLoadBusy || !Model.canDeleteEvent(selectedEvent)) return
-    deleteConfirm.recurring = Model.isRecurringEvent(selectedEvent)
+    var event = focusedEvent()
+    if (!event || mutationBusy || editLoadBusy || !Model.canDeleteEvent(event) || showingSettings || showingHelp || showingEditor) return
+    pendingDeleteEvent = event
+    deleteConfirm.recurring = Model.isRecurringEvent(event)
     deleteConfirm.selectedIndex = 0
     deleteConfirm.opened = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -311,12 +346,14 @@ Panel {
 
   function confirmDelete(scope) {
     deleteConfirm.opened = false
-    if (!selectedEvent) return
+    var event = pendingDeleteEvent || selectedEvent
+    pendingDeleteEvent = null
+    if (!event) return
     var options = {}
     if (scope === "this") options.thisEvent = true
     if (scope === "following") options.following = true
     if (scope === "series") options.series = true
-    var args = Model.eventDeleteArgs(selectedEvent, options)
+    var args = Model.eventDeleteArgs(event, options)
     if (args.length === 0) return
     var kind = scope === "series" ? "delete-series" : (scope === "following" ? "delete-following" : (scope === "this" ? "delete-this" : "delete"))
     runMutation(args, kind)
@@ -427,15 +464,11 @@ Panel {
           else if (dy !== 0) deleteConfirm.cycle(dy)
           return
         }
-        if (!root.showingDetails && !root.showingSettings && !root.showingEditor && dy !== 0) root.moveSelection(dy)
+        if (root.showingDetails || root.showingSettings || root.showingEditor || root.showingHelp) return
+        if (dy !== 0) root.moveSelection(dy)
+        else if (dx !== 0) root.moveSelectionByDay(dx)
       }
-      onCloseRequested: {
-        if (deleteConfirm.opened) deleteConfirm.opened = false
-        else if (root.showingEditor) root.cancelEditor()
-        else if (root.showingDetails || root.showingSettings || root.showingHelp) root.backToAgenda()
-        else if (root.searching) root.endSearch()
-        else root.close()
-      }
+      onCloseRequested: root.handleClose()
       onActivateRequested: {
         if (deleteConfirm.opened) deleteConfirm.activate()
         else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp) root.activateSelection()
@@ -444,25 +477,24 @@ Panel {
         if (deleteConfirm.opened) deleteConfirm.cycle(direction)
         else root.switchPanel(direction)
       }
-      onDeleteRequested: {
-        if (root.showingDetails) root.requestDelete()
-      }
+      onDeleteRequested: root.requestDelete()
       onTextKey: function(text) {
-        if (deleteConfirm.opened) return
-        if (text === "?") root.toggleHelp()
+        if (deleteConfirm.opened) {
+          if (text === "q") root.handleClose()
+          return
+        }
+        if (text === "q") root.handleClose()
+        else if (text === "?") root.toggleHelp()
         else if (root.showingHelp) return
-        else if (text === "r" || text === "R") root.refresh()
+        else if (text === "s" || text === "S") root.refresh()
         else if (text === "/") root.beginSearch()
-        else if (text === ",") root.toggleSettings()
-        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && text === "N") root.startCreate()
-        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && text === "n") root.moveSelection(1)
-        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && (text === "p" || text === "P" || text === "b" || text === "B")) root.moveSelection(-1)
+        else if (text === "," || text === "C") root.toggleSettings()
+        else if (text === "c") root.startCreate()
         else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && (text === "t" || text === "T")) root.selectToday()
-        else if (root.showingDetails && (text === "e" || text === "E")) root.startEdit()
-        else if (root.showingDetails && (text === "d" || text === "D")) root.requestDelete()
-        else if (root.showingDetails && (text === "j" || text === "J")) root.joinEvent()
-        else if (root.showingDetails && (text === "c" || text === "C")) root.copyEventDetails()
-        else if (root.showingDetails && (text === "o" || text === "O")) root.openChroncal()
+        else if (!root.showingSettings && !root.showingEditor && (text === "e" || text === "E")) root.startEdit()
+        else if (root.showingDetails && (text === "v" || text === "V")) root.joinEvent()
+        else if (root.showingDetails && (text === "p" || text === "P")) root.copyEventDetails()
+        else if (root.showingDetails && (text === "g" || text === "G")) root.openChroncal()
       }
 
       Column {
@@ -747,13 +779,22 @@ Panel {
         id: deleteConfirm
         anchors.fill: parent
         z: 20
-        title: String(root.selectedEvent ? root.selectedEvent.title : "this event")
+        title: String((root.pendingDeleteEvent || root.selectedEvent) ? (root.pendingDeleteEvent || root.selectedEvent).title : "this event")
         background: root.bar ? root.bar.background : Color.background
         foreground: root.contentForeground
         fontFamily: root.contentFontFamily
-        onCanceled: opened = false
+        onCanceled: {
+          opened = false
+          root.pendingDeleteEvent = null
+        }
         onChosen: function(scope) { root.confirmDelete(scope) }
       }
+    }
+
+    Shortcut {
+      sequence: "Delete"
+      enabled: root.opened && !keyCatcher.blocked
+      onActivated: root.requestDelete()
     }
   }
 }
