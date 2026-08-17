@@ -41,6 +41,31 @@ assert.deepEqual(
 );
 assert.equal(model.formatEventRange(events[0]), "11:30–12:30");
 assert.equal(model.formatEventRange(events[2]), "All day");
+assert.equal(model.formatEventDate(events[0], "2026-08-15T12:00:00Z"), "Today, August 15");
+assert.equal(model.formatEventDate(events[1], "2026-08-15T12:00:00Z"), "Tomorrow, August 16");
+assert.equal(model.formatEventDate(events[2], "2026-08-15T12:00:00Z"), "Tomorrow, August 16");
+assert.equal(model.formatEventDate({
+  start_time: "2026-08-14T18:00:00Z",
+  end_time: "2026-08-14T19:00:00Z"
+}, "2026-08-15T12:00:00Z"), "Yesterday, August 14");
+assert.equal(model.formatEventDate({
+  start_time: "2026-08-24T09:00:00Z",
+  end_time: "2026-08-24T10:00:00Z"
+}, "2026-08-15T12:00:00Z"), "Monday, August 24");
+assert.equal(model.formatEventDate({
+  start_time: "2027-01-02T09:00:00Z",
+  end_time: "2027-01-02T10:00:00Z"
+}, "2026-08-15T12:00:00Z"), "Saturday, January 2, 2027");
+assert.equal(model.formatEventDate({
+  start_time: "2026-08-15T23:00:00Z",
+  end_time: "2026-08-16T01:00:00Z"
+}, "2026-08-15T12:00:00Z"), "Today, August 15 – Tomorrow, August 16");
+assert.equal(model.formatEventDate({
+  start_time: "2026-08-16T00:00:00Z",
+  end_time: "2026-08-18T00:00:00Z",
+  all_day: true
+}, "2026-08-15T12:00:00Z"), "Tomorrow, August 16 – Monday, August 17");
+assert.equal(model.formatEventDate({}), "");
 assert.equal(model.eventProgress(events[0], "2026-08-15T12:00:00Z"), 0.5);
 assert.equal(model.eventProgress(events[1], "2026-08-15T12:00:00Z"), 0);
 assert.equal(model.clampSelection(-1, 3), 0);
@@ -88,9 +113,11 @@ assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "alice").map(eve
 assert.deepEqual(model.searchEvents([{ ...detailedEvent, calendar_name: "Work" }, events[1]], "work").map(event => event.id), [1]);
 assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "  ").map(event => event.id), [1, 2]);
 assert.match(model.attendeeSummary(detailedEvent), /Alice · Accepted/);
-assert.match(model.eventDetailsText(detailedEvent), /Current/);
-assert.match(model.eventDetailsText(detailedEvent), /Discuss launch plan/);
-assert.match(model.eventDetailsText(detailedEvent), /alice@example.test/);
+assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /Current/);
+assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /Today, August 15/);
+assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /11:30–12:30/);
+assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /Discuss launch plan/);
+assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /alice@example.test/);
 
 const createValues = {
   title: "Review launch",
@@ -532,7 +559,8 @@ const invitedEvent = {
 };
 assert.equal(model.canRsvp(invitedEvent), true);
 assert.equal(model.userRsvpStatus(invitedEvent), "");
-assert.deepEqual(model.rsvpChoices().map(choice => choice.value), ["ACCEPTED", "DECLINED", "TENTATIVE"]);
+assert.deepEqual(model.rsvpChoices().map(choice => choice.value), ["ACCEPTED", "TENTATIVE", "DECLINED"]);
+assert.deepEqual(model.rsvpChoices().map(choice => choice.label), ["Yes", "Maybe", "No"]);
 assert.deepEqual(model.eventRsvpArgs(invitedEvent, "yes"), ["event", "rsvp", "42", "--status", "ACCEPTED"]);
 assert.deepEqual(model.eventRsvpArgs(invitedEvent, "n"), ["event", "rsvp", "42", "--status", "DECLINED"]);
 assert.deepEqual(model.eventRsvpArgs(invitedEvent, "Maybe"), ["event", "rsvp", "42", "--status", "TENTATIVE"]);

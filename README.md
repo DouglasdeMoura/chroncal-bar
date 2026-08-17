@@ -20,7 +20,8 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Groups events under Today, Tomorrow, and later dates.
 - Filters hidden calendars and supports per-calendar inclusion.
 - Searches titles, descriptions, locations, calendar names, and participants.
-- Shows location, notes, conferencing links, attendees, and RSVP state.
+- Shows the event date, location, notes, conferencing links, attendees, and RSVP state.
+- Wraps long titles instead of cropping them.
 - Opens meeting links, maps, participant email, and Chroncal.
 - Copies complete event details to the clipboard.
 - Creates, edits, and deletes Chroncal events without shell interpolation.
@@ -32,7 +33,7 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Creates and edits recurrence with Chroncal Repeat presets and inline Custom fields.
 - Leaves stored override Repeat rules on the series; open the series editor to change them.
 - Deletes this event, this and following, or all events in a recurring series from the panel confirm.
-- Replies Yes, No, or Maybe when the calendar owner is an invited attendee.
+- Replies Yes, Maybe, or No from a Going control on event details when the calendar owner is an invited attendee.
 
 This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 

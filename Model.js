@@ -81,6 +81,38 @@ function formatEventRange(event) {
   return formatTime(event.start_time) + "–" + formatTime(event.end_time);
 }
 
+function monthName(date) {
+  return ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][date.getMonth()];
+}
+
+function formatInspectorDate(date, now) {
+  var weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var datePart = monthName(date) + " " + date.getDate();
+  if (date.getFullYear() !== now.getFullYear()) datePart += ", " + date.getFullYear();
+  var difference = dayDifference(date, now);
+  if (difference === 0) return "Today, " + datePart;
+  if (difference === 1) return "Tomorrow, " + datePart;
+  if (difference === -1) return "Yesterday, " + datePart;
+  return weekdays[date.getDay()] + ", " + datePart;
+}
+
+function eventInclusiveEnd(event) {
+  var end = parseDate(event && event.end_time);
+  if (!end) return parseDate(event && event.start_time);
+  if (event && event.all_day === true) return new Date(end.getTime() - 1);
+  return end;
+}
+
+function formatEventDate(event, nowValue) {
+  var start = parseDate(event && event.start_time);
+  if (!start) return "";
+  var now = parseDate(nowValue) || new Date();
+  var end = eventInclusiveEnd(event) || start;
+  var startLabel = formatInspectorDate(start, now);
+  if (dateKey(start) === dateKey(end)) return startLabel;
+  return startLabel + " – " + formatInspectorDate(end, now);
+}
+
 function eventProgress(event, nowValue) {
   if (!event || event.all_day === true) return 0;
   var start = parseDate(event.start_time);
@@ -901,8 +933,8 @@ function eventDeleteArgs(event, options) {
 function rsvpChoices() {
   return [
     { value: "ACCEPTED", label: "Yes" },
-    { value: "DECLINED", label: "No" },
-    { value: "TENTATIVE", label: "Maybe" }
+    { value: "TENTATIVE", label: "Maybe" },
+    { value: "DECLINED", label: "No" }
   ];
 }
 
@@ -1014,9 +1046,12 @@ function attendeeSummary(event) {
   }).join("\n");
 }
 
-function eventDetailsText(event) {
+function eventDetailsText(event, nowValue) {
   if (!event) return "";
-  var lines = [String(event.title || "Untitled"), formatEventRange(event)];
+  var lines = [String(event.title || "Untitled")];
+  var dateLine = formatEventDate(event, nowValue);
+  if (dateLine) lines.push(dateLine);
+  lines.push(formatEventRange(event));
   if (event.calendar_name) lines.push(String(event.calendar_name));
   if (event.location) lines.push(String(event.location));
   if (event.description) lines.push(String(event.description));

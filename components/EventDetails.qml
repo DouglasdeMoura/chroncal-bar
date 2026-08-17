@@ -10,6 +10,7 @@ Item {
 
   property var bar: null
   property var eventData: ({})
+  property string nowIso: ""
   property string actionStatus: ""
   property bool busy: false
 
@@ -31,6 +32,7 @@ Item {
   readonly property bool recurring: Model.isRecurringEvent(eventData)
   readonly property bool canRsvp: Model.canRsvp(eventData)
   readonly property var rsvpChoices: Model.rsvpChoices()
+  readonly property string eventDateLabel: Model.formatEventDate(eventData, nowIso)
 
   onEventDataChanged: detailsFlick.contentY = 0
 
@@ -62,7 +64,7 @@ Item {
         font.family: root.fontFamily
         font.pixelSize: Style.font.title
         font.bold: true
-        elide: Text.ElideRight
+        wrapMode: Text.Wrap
       }
 
       Rectangle {
@@ -90,13 +92,25 @@ Item {
           spacing: Style.space(5)
 
           Text {
+            visible: root.eventDateLabel !== ""
             width: parent.width
-            text: Model.formatEventRange(root.eventData)
+            text: root.eventDateLabel
             textFormat: Text.PlainText
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
             font.bold: true
+            wrapMode: Text.Wrap
+          }
+
+          Text {
+            width: parent.width
+            text: Model.formatEventRange(root.eventData)
+            textFormat: Text.PlainText
+            color: Util.alpha(root.foreground, 0.82)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            wrapMode: Text.Wrap
           }
 
           Text {
@@ -120,6 +134,45 @@ Item {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         elide: Text.ElideRight
+      }
+
+      Column {
+        visible: root.canRsvp
+        width: parent.width
+        spacing: Style.space(6)
+
+        Text {
+          text: "GOING"
+          color: Util.alpha(root.foreground, 0.52)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          font.letterSpacing: 1
+        }
+
+        Row {
+          id: rsvpRow
+          width: parent.width
+          spacing: Style.space(6)
+
+          Repeater {
+            model: root.rsvpChoices
+
+            Button {
+              required property var modelData
+              width: (rsvpRow.width - rsvpRow.spacing * 2) / 3
+              text: modelData.label
+              bordered: true
+              focusable: true
+              selected: Model.userRsvpStatus(root.eventData) === modelData.value
+              enabled: !root.busy
+              opacity: enabled ? 1 : 0.55
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: root.rsvpRequested(modelData.value)
+            }
+          }
+        }
       }
 
       Column {
@@ -222,29 +275,6 @@ Item {
       width: parent.width
       height: 1
       color: Util.alpha(root.foreground, 0.12)
-    }
-
-    Row {
-      visible: root.canRsvp
-      width: parent.width
-      spacing: Style.space(8)
-
-      Repeater {
-        model: root.rsvpChoices
-
-        Button {
-          required property var modelData
-          text: modelData.label
-          bordered: true
-          focusable: true
-          selected: Model.userRsvpStatus(root.eventData) === modelData.value
-          enabled: !root.busy
-          opacity: enabled ? 1 : 0.55
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          onClicked: root.rsvpRequested(modelData.value)
-        }
-      }
     }
 
     Row {

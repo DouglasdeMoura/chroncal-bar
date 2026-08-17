@@ -748,6 +748,7 @@ Panel {
             anchors.fill: parent
             bar: root.bar
             eventData: root.selectedEvent || ({})
+            nowIso: root.agendaData.generated_at || ""
             actionStatus: root.actionStatus
             busy: root.mutationBusy || root.editLoadBusy
             onJoinRequested: root.joinEvent()
