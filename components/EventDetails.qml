@@ -152,15 +152,13 @@ Item {
 
         Row {
           id: rsvpRow
-          width: parent.width
-          spacing: Style.space(6)
+          spacing: Style.space(4)
 
           Repeater {
             model: root.rsvpChoices
 
             Button {
               required property var modelData
-              width: (rsvpRow.width - rsvpRow.spacing * 2) / 3
               text: modelData.label
               bordered: true
               focusable: true
@@ -169,6 +167,9 @@ Item {
               opacity: enabled ? 1 : 0.55
               foreground: root.foreground
               fontFamily: root.fontFamily
+              fontSize: Style.font.bodySmall
+              horizontalPadding: Style.space(8)
+              verticalPadding: Style.space(3)
               onClicked: root.rsvpRequested(modelData.value)
             }
           }
