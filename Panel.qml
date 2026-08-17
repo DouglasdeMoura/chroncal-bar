@@ -497,6 +497,12 @@ Panel {
         else if (root.showingDetails && (text === "g" || text === "G")) root.openChroncal()
       }
 
+      Shortcut {
+        sequence: "Delete"
+        enabled: root.opened && !keyCatcher.blocked
+        onActivated: root.requestDelete()
+      }
+
       Column {
         anchors.fill: parent
         anchors.margins: Style.space(16)
@@ -790,11 +796,5 @@ Panel {
         onChosen: function(scope) { root.confirmDelete(scope) }
       }
     }
-  }
-
-  Shortcut {
-    sequence: "Delete"
-    enabled: root.opened && !keyCatcher.blocked
-    onActivated: root.requestDelete()
   }
 }
