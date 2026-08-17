@@ -858,7 +858,9 @@ function eventMutationArgs(mode, event, values, options) {
       args.push("--description", String(form.description || ""));
     if (canEditRecurrence(event) && form.recurrence) {
       var nextRule = buildRecurrenceRule(form.recurrence, form.date);
-      if (String(event.recurrence_rule || "") !== nextRule) args.push("--recurrence-rule", nextRule);
+      var storedRule = String(event.recurrence_rule || "");
+      var canonicalStored = buildRecurrenceRule(parseRecurrenceRule(storedRule, form.date), form.date);
+      if (nextRule !== storedRule && nextRule !== canonicalStored) args.push("--recurrence-rule", nextRule);
     }
     return args;
   }

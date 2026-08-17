@@ -485,6 +485,30 @@ const cleared = model.eventMutationArgs("edit", seriesMaster, {
 }, { series: true });
 assert.equal(cleared[cleared.indexOf("--recurrence-rule") + 1], "");
 
+const monthlyByMonthDayMaster = { ...seriesMaster, recurrence_rule: "FREQ=MONTHLY;BYMONTHDAY=18" };
+assert.equal(model.eventMutationArgs("edit", monthlyByMonthDayMaster, {
+  ...seriesRecurrenceValues,
+  recurrence: model.parseRecurrenceRule(monthlyByMonthDayMaster.recurrence_rule, "2026-08-18")
+}, { series: true }).indexOf("--recurrence-rule"), -1);
+
+const weeklyWkstMaster = { ...seriesMaster, recurrence_rule: "FREQ=WEEKLY;BYDAY=TU;WKST=SU" };
+assert.equal(model.eventMutationArgs("edit", weeklyWkstMaster, {
+  ...seriesRecurrenceValues,
+  recurrence: model.parseRecurrenceRule(weeklyWkstMaster.recurrence_rule, "2026-08-18")
+}, { series: true }).indexOf("--recurrence-rule"), -1);
+
+const lastFridayMaster = { ...seriesMaster, recurrence_rule: "FREQ=MONTHLY;BYDAY=-1FR" };
+assert.equal(model.eventMutationArgs("edit", lastFridayMaster, {
+  ...seriesRecurrenceValues,
+  recurrence: model.parseRecurrenceRule(lastFridayMaster.recurrence_rule, "2026-08-18")
+}, { series: true }).indexOf("--recurrence-rule"), -1);
+
+const changedRepeatArgs = model.eventMutationArgs("edit", monthlyByMonthDayMaster, {
+  ...seriesRecurrenceValues,
+  recurrence: model.parseRecurrenceRule("FREQ=DAILY", "2026-08-18")
+}, { series: true });
+assert.equal(changedRepeatArgs[changedRepeatArgs.indexOf("--recurrence-rule") + 1], "FREQ=DAILY");
+
 const overrideRecurrenceValues = {
   ...createValues,
   recurrence: model.parseRecurrenceRule("FREQ=DAILY", "2026-08-18")
