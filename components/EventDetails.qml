@@ -302,6 +302,21 @@ Item {
         }
       }
 
+      Button {
+        text: "Open in Chroncal"
+        tooltipText: "Open this event in Chroncal"
+        bordered: true
+        focusable: true
+        enabled: !root.busy
+        opacity: enabled ? 1 : 0.55
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        fontSize: Style.font.bodySmall
+        horizontalPadding: Style.space(8)
+        verticalPadding: Style.space(3)
+        onClicked: root.chroncalRequested()
+      }
+
     }
   }
 
@@ -347,16 +362,6 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         spacing: Style.space(18)
-
-        PanelActionButton {
-          iconText: "󰃭"
-          tooltipText: "Open this event in Chroncal"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          focusable: true
-          enabled: !root.busy
-          onClicked: root.chroncalRequested()
-        }
 
         PanelActionButton {
           iconText: "󰏫"

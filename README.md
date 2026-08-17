@@ -25,8 +25,8 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Opens Google Meet links as the calendar owner account (`authuser`).
 - Wraps long titles instead of cropping them.
 - Opens maps from an open-link icon at the end of the location name.
-- Shows Join on the left when the event has a link, with the other footer icons on the right.
-- Opens Chroncal on the selected event (`chroncal --event`).
+- Shows Join on the left when the event has a link, with Edit and Delete on the right.
+- Opens this event in Chroncal from a labeled button at the end of event details (`chroncal --event`).
 - Copies complete event details to the clipboard with `p`.
 - Creates, edits, and deletes Chroncal events without shell interpolation.
 - Preserves omitted fields during edits and never reinterprets unchanged event times.
