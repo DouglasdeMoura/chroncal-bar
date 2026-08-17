@@ -790,11 +790,11 @@ Panel {
         onChosen: function(scope) { root.confirmDelete(scope) }
       }
     }
+  }
 
-    Shortcut {
-      sequence: "Delete"
-      enabled: root.opened && !keyCatcher.blocked
-      onActivated: root.requestDelete()
-    }
+  Shortcut {
+    sequence: "Delete"
+    enabled: root.opened && !keyCatcher.blocked
+    onActivated: root.requestDelete()
   }
 }
