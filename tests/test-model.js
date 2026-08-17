@@ -435,3 +435,64 @@ assert.match(model.validateRecurrenceForm({
 
 assert.match(model.recurrenceRuleSummary(model.parseRecurrenceRule("FREQ=WEEKLY;BYDAY=MO,WE", recurrenceStart), recurrenceStart), /Weekly on Mo, We/);
 assert.equal(model.recurrenceRuleSummary(model.parseRecurrenceRule("FREQ=DAILY", recurrenceStart), recurrenceStart), "Every day");
+
+assert.equal(model.canEditRecurrence(null), true);
+assert.equal(model.canEditRecurrence({ id: 42 }), true);
+assert.equal(model.canEditRecurrence({ id: 42, recurrence_rule: "FREQ=WEEKLY" }), true);
+assert.equal(model.canEditRecurrence({ uid: "weekly-uid", recurrence_id: "2026-08-18T14:30:00Z" }), false);
+
+const created = model.eventEditorValues(null, "2026-08-19T12:00:00Z");
+assert.equal(created.recurrence.preset, "none");
+assert.equal(model.eventEditorValues({
+  ...existingEditEvent,
+  timezone: "",
+  recurrence_rule: "FREQ=WEEKLY;BYDAY=WE"
+}, "2026-08-19T12:00:00Z").recurrence.preset, "custom");
+
+assert.deepEqual(model.validateEventForm({
+  ...createValues,
+  recurrence: model.parseRecurrenceRule("FREQ=DAILY", "2026-08-18")
+}), []);
+assert.match(model.validateEventForm({
+  ...createValues,
+  recurrence: { ...model.defaultRecurrenceForm("2026-08-18"), preset: "custom", interval: 0 }
+})[0], /interval/i);
+
+const weeklyCreate = { ...createValues, recurrence: model.parseRecurrenceRule("FREQ=WEEKLY", "2026-08-18") };
+const weeklyCreateArgs = model.eventMutationArgs("create", null, weeklyCreate);
+assert.ok(weeklyCreateArgs.indexOf("--recurrence-rule") >= 0);
+assert.equal(weeklyCreateArgs[weeklyCreateArgs.indexOf("--recurrence-rule") + 1], "FREQ=WEEKLY");
+assert.equal(model.eventMutationArgs("create", null, createValues).indexOf("--recurrence-rule"), -1);
+
+const seriesMaster = { ...mergedSeriesMaster, timezone: "" };
+const seriesRecurrenceValues = {
+  ...seriesEditValues,
+  date: "2026-08-18",
+  time: "14:30",
+  duration: "45m",
+  recurrence: model.parseRecurrenceRule("FREQ=DAILY", "2026-08-18")
+};
+const seriesRuleArgs = model.eventMutationArgs("edit", seriesMaster, seriesRecurrenceValues, { series: true });
+assert.equal(seriesRuleArgs[seriesRuleArgs.indexOf("--recurrence-rule") + 1], "FREQ=DAILY");
+assert.equal(model.eventMutationArgs("edit", seriesMaster, {
+  ...seriesRecurrenceValues,
+  recurrence: model.parseRecurrenceRule("FREQ=WEEKLY", "2026-08-18")
+}, { series: true }).indexOf("--recurrence-rule"), -1);
+
+const cleared = model.eventMutationArgs("edit", seriesMaster, {
+  ...seriesRecurrenceValues,
+  recurrence: model.defaultRecurrenceForm("2026-08-18")
+}, { series: true });
+assert.equal(cleared[cleared.indexOf("--recurrence-rule") + 1], "");
+
+const overrideRecurrenceValues = {
+  ...createValues,
+  recurrence: model.parseRecurrenceRule("FREQ=DAILY", "2026-08-18")
+};
+assert.equal(model.eventMutationArgs("edit", overrideEditEvent, overrideRecurrenceValues).indexOf("--recurrence-rule"), -1);
+
+const timezoneRecurrenceEvent = { ...existingEditEvent, recurrence_rule: "" };
+assert.ok(model.eventMutationArgs("edit", timezoneRecurrenceEvent, {
+  ...createValues,
+  recurrence: model.parseRecurrenceRule("FREQ=WEEKLY", "2026-08-18")
+}).indexOf("--recurrence-rule") >= 0);

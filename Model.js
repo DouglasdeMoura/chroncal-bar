@@ -434,7 +434,8 @@ function eventEditorValues(event, nowValue) {
       allDay: event.all_day === true,
       calendar: String(event.calendar_name || ""),
       location: String(event.location || ""),
-      description: String(event.description || "")
+      description: String(event.description || ""),
+      recurrence: parseRecurrenceRule(event.recurrence_rule, dateInputValue(event.start_time, event.all_day === true))
     };
   }
   var nextHour = parseDate(nowValue) || new Date();
@@ -449,7 +450,8 @@ function eventEditorValues(event, nowValue) {
     allDay: false,
     calendar: "",
     location: "",
-    description: ""
+    description: "",
+    recurrence: defaultRecurrenceForm(dateInputValue(nextHour, false))
   };
 }
 
@@ -460,6 +462,7 @@ function validateEventForm(values) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(form.date || ""))) errors.push("Date must use YYYY-MM-DD");
   if (form.allDay !== true && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(form.time || ""))) errors.push("Time must use HH:MM");
   if (form.allDay !== true && !/^(?=.+)(?:\d+h)?(?:\d+m)?$/.test(String(form.duration || ""))) errors.push("Duration must look like 30m or 1h30m");
+  errors = errors.concat(validateRecurrenceForm(form.recurrence, form.date));
   return errors;
 }
 
@@ -853,6 +856,10 @@ function eventMutationArgs(mode, event, values, options) {
       args.push("--location", String(form.location || ""));
     if (String(form.description || "") !== String(original.description || ""))
       args.push("--description", String(form.description || ""));
+    if (canEditRecurrence(event) && form.recurrence) {
+      var nextRule = buildRecurrenceRule(form.recurrence, form.date);
+      if (String(event.recurrence_rule || "") !== nextRule) args.push("--recurrence-rule", nextRule);
+    }
     return args;
   }
 
@@ -861,6 +868,8 @@ function eventMutationArgs(mode, event, values, options) {
   if (form.allDay !== true) args.push("--time", String(form.time), "--duration", String(form.duration));
   pushOptionalFlag(args, "--location", form.location);
   pushOptionalFlag(args, "--description", form.description);
+  var createRule = buildRecurrenceRule(form.recurrence, form.date);
+  if (createRule !== "") args.push("--recurrence-rule", createRule);
   args.push("--", title);
   return args;
 }
