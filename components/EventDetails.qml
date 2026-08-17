@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
@@ -19,6 +20,7 @@ Item {
   signal chroncalRequested()
   signal editRequested()
   signal deleteRequested()
+  signal rsvpRequested(string status)
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -27,6 +29,8 @@ Item {
   readonly property bool canMutate: Model.canMutateEvent(eventData)
   readonly property bool canDelete: Model.canDeleteEvent(eventData)
   readonly property bool recurring: Model.isRecurringEvent(eventData)
+  readonly property bool canRsvp: Model.canRsvp(eventData)
+  readonly property var rsvpChoices: Model.rsvpChoices()
 
   onEventDataChanged: detailsFlick.contentY = 0
 
@@ -218,6 +222,29 @@ Item {
       width: parent.width
       height: 1
       color: Util.alpha(root.foreground, 0.12)
+    }
+
+    Row {
+      visible: root.canRsvp
+      width: parent.width
+      spacing: Style.space(8)
+
+      Repeater {
+        model: root.rsvpChoices
+
+        Button {
+          required property var modelData
+          text: modelData.label
+          bordered: true
+          focusable: true
+          selected: Model.userRsvpStatus(root.eventData) === modelData.value
+          enabled: !root.busy
+          opacity: enabled ? 1 : 0.55
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onClicked: root.rsvpRequested(modelData.value)
+        }
+      }
     }
 
     Row {

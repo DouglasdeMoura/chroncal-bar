@@ -898,6 +898,70 @@ function eventDeleteArgs(event, options) {
   return ["event", "delete"].concat(eventMutationTargetArgs(event)).concat(["--yes"]);
 }
 
+function rsvpChoices() {
+  return [
+    { value: "ACCEPTED", label: "Yes" },
+    { value: "DECLINED", label: "No" },
+    { value: "TENTATIVE", label: "Maybe" }
+  ];
+}
+
+function normalizeRsvpStatus(value) {
+  var raw = String(value || "").trim().toUpperCase();
+  if (raw === "ACCEPTED" || raw === "YES" || raw === "Y") return "ACCEPTED";
+  if (raw === "DECLINED" || raw === "NO" || raw === "N") return "DECLINED";
+  if (raw === "TENTATIVE" || raw === "MAYBE" || raw === "M") return "TENTATIVE";
+  return "";
+}
+
+function emailsMatch(left, right) {
+  return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
+}
+
+function userAttendee(event) {
+  if (!event) return null;
+  var owner = String(event.calendar_owner_email || "").trim();
+  if (owner === "") return null;
+  var attendees = event.attendees || [];
+  for (var i = 0; i < attendees.length; i++) {
+    var attendee = attendees[i];
+    if (emailsMatch(attendee.email, owner) && attendee.organizer !== true) return attendee;
+  }
+  return null;
+}
+
+function canRsvp(event) {
+  return userAttendee(event) !== null;
+}
+
+function userRsvpStatus(event) {
+  var attendee = userAttendee(event);
+  return attendee ? normalizeRsvpStatus(attendee.rsvp_status) : "";
+}
+
+function eventRsvpArgs(event, status) {
+  if (!canRsvp(event)) return [];
+  var normalized = normalizeRsvpStatus(status);
+  var ref = eventReference(event);
+  if (normalized === "" || ref === "") return [];
+  return ["event", "rsvp", ref, "--status", normalized];
+}
+
+function applyUserRsvp(event, status) {
+  var normalized = normalizeRsvpStatus(status);
+  if (!event || !canRsvp(event) || normalized === "") return event;
+  var owner = String(event.calendar_owner_email || "").trim();
+  var next = {};
+  for (var key in event) next[key] = event[key];
+  next.attendees = (event.attendees || []).map(function(attendee) {
+    var copy = {};
+    for (var field in attendee) copy[field] = attendee[field];
+    if (emailsMatch(attendee.email, owner) && attendee.organizer !== true) copy.rsvp_status = normalized;
+    return copy;
+  });
+  return next;
+}
+
 function firstUrlInText(value) {
   var match = String(value || "").match(/https?:\/\/[^\s<>()]+/i);
   return match ? match[0].replace(/[.,;:!?]+$/, "") : "";

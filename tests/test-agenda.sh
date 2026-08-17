@@ -26,6 +26,7 @@ jq -e '
   and .next.conference_url == "https://meet.example.test/standup"
   and .next.location == "Rua Exemplo 10, Curitiba"
   and (.next.attendees | map(.email)) == ["alice@example.test", "bob@example.test"]
+  and (.next.attendees | map(.organizer)) == [false, false]
   and (.events[1].class == "PRIVATE")
   and (.events[2].recurrence_id == "2026-08-15T14:00:00Z")
   and (.events[2].calendar_color == "#888888")

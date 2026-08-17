@@ -18,6 +18,7 @@ Panel {
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
   readonly property var agendaData: hostWidget ? hostWidget.filteredAgenda : ({ status: "loading", events: [] })
+  onAgendaDataChanged: root.hydrateSelectedEvent()
   property string searchQuery: ""
   property bool searching: false
   readonly property var visibleEvents: Model.searchEvents(agendaData.events || [], searchQuery)
@@ -46,6 +47,8 @@ Panel {
   property string editLoadStdoutText: ""
   property string editLoadStderrText: ""
   property var pendingDeleteEvent: null
+  property bool rsvpRefreshPending: false
+  property string rsvpExpectedStatus: ""
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
@@ -56,6 +59,8 @@ Panel {
   }
 
   function close() {
+    root.rsvpRefreshPending = false
+    root.rsvpExpectedStatus = ""
     root.selectedEvent = null
     root.selectedEventKey = ""
     root.resetSearch()
@@ -91,6 +96,8 @@ Panel {
   }
 
   function backToAgenda() {
+    rsvpRefreshPending = false
+    rsvpExpectedStatus = ""
     selectedEvent = null
     editorMode = ""
     showingSettings = false
@@ -370,15 +377,53 @@ Panel {
     mutationProc.running = true
   }
 
+  function hydrateSelectedEvent() {
+    if (!rsvpRefreshPending || !showingDetails || !selectedEventKey) return
+    var index = selectedEventIndex()
+    if (index < 0) return
+    var next = visibleEvents[index]
+    if (rsvpExpectedStatus !== "" && Model.userRsvpStatus(next) !== rsvpExpectedStatus) return
+    rsvpRefreshPending = false
+    rsvpExpectedStatus = ""
+    selectedEvent = next
+  }
+
+  function rsvpEvent(status) {
+    if (mutationBusy || editLoadBusy || !showingDetails) return
+    var event = selectedEvent
+    var args = Model.eventRsvpArgs(event, status)
+    if (args.length === 0) return
+    var normalized = Model.normalizeRsvpStatus(status)
+    selectedEvent = Model.applyUserRsvp(event, normalized)
+    runMutation(args, "rsvp-" + normalized)
+  }
+
   function finishMutation(exitCode) {
+    var completed = mutationKind
     mutationBusy = false
     if (exitCode !== 0) {
       mutationError = String(mutationStderrText || mutationStdoutText || "Chroncal could not save the event").trim()
       actionStatus = mutationError
       actionStatusTimer.restart()
+      if (String(completed).indexOf("rsvp-") === 0) {
+        var index = selectedEventIndex()
+        if (index >= 0) selectedEvent = visibleEvents[index]
+        rsvpExpectedStatus = Model.userRsvpStatus(selectedEvent)
+        rsvpRefreshPending = true
+        refresh()
+        Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      }
       return
     }
-    var completed = mutationKind
+    if (String(completed).indexOf("rsvp-") === 0) {
+      actionStatus = completed === "rsvp-ACCEPTED" ? "Accepted" : (completed === "rsvp-DECLINED" ? "Declined" : (completed === "rsvp-TENTATIVE" ? "Maybe" : "RSVP updated"))
+      actionStatusTimer.restart()
+      rsvpExpectedStatus = completed.slice(5)
+      rsvpRefreshPending = true
+      refresh()
+      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      return
+    }
     editorMode = ""
     selectedEvent = null
     selectedEventKey = ""
@@ -495,6 +540,9 @@ Panel {
         else if (root.showingDetails && (text === "v" || text === "V")) root.joinEvent()
         else if (root.showingDetails && (text === "p" || text === "P")) root.copyEventDetails()
         else if (root.showingDetails && (text === "g" || text === "G")) root.openChroncal()
+        else if (root.showingDetails && (text === "y" || text === "Y")) root.rsvpEvent("ACCEPTED")
+        else if (root.showingDetails && (text === "n" || text === "N")) root.rsvpEvent("DECLINED")
+        else if (root.showingDetails && (text === "m" || text === "M")) root.rsvpEvent("TENTATIVE")
       }
 
       Shortcut {
@@ -709,6 +757,7 @@ Panel {
             onChroncalRequested: root.openChroncal()
             onEditRequested: root.startEdit()
             onDeleteRequested: root.requestDelete()
+            onRsvpRequested: function(status) { root.rsvpEvent(status) }
           }
 
           EventEditor {

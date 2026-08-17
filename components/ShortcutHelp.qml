@@ -30,6 +30,7 @@ Flickable {
     { keys: "v", action: "Join or open event link" },
     { keys: "p", action: "Copy event details" },
     { keys: "g", action: "Open Chroncal" },
+    { keys: "y / n / m", action: "RSVP yes, no, or maybe" },
     { keys: "s", action: "Refresh agenda" },
     { keys: "C / ,", action: "Calendar settings" },
     { keys: "?", action: "Open shortcut help" },

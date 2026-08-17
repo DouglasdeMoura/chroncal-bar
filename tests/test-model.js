@@ -520,3 +520,40 @@ assert.ok(model.eventMutationArgs("edit", timezoneRecurrenceEvent, {
   ...createValues,
   recurrence: model.parseRecurrenceRule("FREQ=WEEKLY", "2026-08-18")
 }).indexOf("--recurrence-rule") >= 0);
+
+const invitedEvent = {
+  id: 42,
+  uid: "invite-uid",
+  calendar_owner_email: "me@example.com",
+  attendees: [
+    { name: "Me", email: "me@example.com", rsvp_status: "NEEDS-ACTION", organizer: false },
+    { name: "Alice", email: "alice@example.com", rsvp_status: "TENTATIVE", organizer: false }
+  ]
+};
+assert.equal(model.canRsvp(invitedEvent), true);
+assert.equal(model.userRsvpStatus(invitedEvent), "");
+assert.deepEqual(model.rsvpChoices().map(choice => choice.value), ["ACCEPTED", "DECLINED", "TENTATIVE"]);
+assert.deepEqual(model.eventRsvpArgs(invitedEvent, "yes"), ["event", "rsvp", "42", "--status", "ACCEPTED"]);
+assert.deepEqual(model.eventRsvpArgs(invitedEvent, "n"), ["event", "rsvp", "42", "--status", "DECLINED"]);
+assert.deepEqual(model.eventRsvpArgs(invitedEvent, "Maybe"), ["event", "rsvp", "42", "--status", "TENTATIVE"]);
+assert.deepEqual(model.eventRsvpArgs(invitedEvent, "CONFIRMED"), []);
+assert.deepEqual(model.eventRsvpArgs({ ...invitedEvent, calendar_owner_email: "" }, "ACCEPTED"), []);
+assert.equal(model.canRsvp({ ...invitedEvent, calendar_owner_email: "" }), false);
+assert.equal(model.canRsvp({ ...invitedEvent, calendar_owner_email: "ME@example.com" }), true);
+assert.equal(model.canRsvp({
+  ...invitedEvent,
+  attendees: [{ name: "Me", email: "me@example.com", rsvp_status: "ACCEPTED", organizer: true }]
+}), false);
+assert.equal(model.canRsvp({
+  ...invitedEvent,
+  attendees: [{ name: "Alice", email: "alice@example.com", rsvp_status: "NEEDS-ACTION" }]
+}), false);
+assert.deepEqual(
+  model.eventRsvpArgs({ ...invitedEvent, recurrence_rule: "FREQ=WEEKLY" }, "y"),
+  ["event", "rsvp", "42", "--status", "ACCEPTED"]
+);
+const accepted = model.applyUserRsvp(invitedEvent, "ACCEPTED");
+assert.equal(model.userRsvpStatus(accepted), "ACCEPTED");
+assert.equal(accepted.attendees[0].rsvp_status, "ACCEPTED");
+assert.equal(accepted.attendees[1].rsvp_status, "TENTATIVE");
+assert.equal(invitedEvent.attendees[0].rsvp_status, "NEEDS-ACTION");

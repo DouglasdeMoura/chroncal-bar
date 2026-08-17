@@ -99,7 +99,8 @@ if ! jq -cn \
           name: (.name // ""),
           email: (.email // ""),
           rsvp_status: (.rsvp_status // "NEEDS-ACTION"),
-          role: (.role // "REQ-PARTICIPANT")
+          role: (.role // "REQ-PARTICIPANT"),
+          organizer: (.organizer == true)
         })),
         updated_at: (.updated_at // "")
       };

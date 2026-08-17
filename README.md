@@ -32,6 +32,7 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Creates and edits recurrence with Chroncal Repeat presets and inline Custom fields.
 - Leaves stored override Repeat rules on the series; open the series editor to change them.
 - Deletes this event, this and following, or all events in a recurring series from the panel confirm.
+- Replies Yes, No, or Maybe when the calendar owner is an invited attendee.
 
 This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 
@@ -39,6 +40,7 @@ This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sen
 
 - Omarchy Quattro
 - Chroncal 0.7.4 or newer on `PATH`
+- A Chroncal build that includes `chroncal event rsvp` for Yes/No/Maybe replies (not in 0.7.4)
 - `bash`, `jq`, GNU `date`, and GNU `timeout`
 - `xdg-open` for links and maps
 - `wl-copy` for copy actions
@@ -49,6 +51,8 @@ Install Chroncal with mise if needed:
 ```sh
 mise use -g github:DouglasdeMoura/chroncal@0.7.4
 ```
+
+That pin is enough for the rest of the bar. Yes/No/Maybe needs a Chroncal newer than 0.7.4, or a local build of `feat/event-rsvp-cli`.
 
 Authenticate and configure calendars in the Chroncal TUI before expecting events on the bar:
 
@@ -80,6 +84,7 @@ The second command is optional. It places the widget beside the tray in the righ
 | `v` | Event details | Join or open event URL |
 | `p` | Event details | Copy event details |
 | `g` | Event details | Open Chroncal |
+| `y` / `n` / `m` | Event details | RSVP yes, no, or maybe |
 | `s` | Agenda | Refresh |
 | `C` or `,` | Agenda | Open settings |
 | `?` | Agenda | Open shortcut help |
