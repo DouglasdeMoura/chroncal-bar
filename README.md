@@ -29,9 +29,11 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Shows an enabled edit pencil for every event with a usable identity.
 - Loads and edits the whole recurring series for generated occurrences.
 - Edits stored recurrence overrides as that override only.
+- Creates and edits recurrence with Chroncal Repeat presets and inline Custom fields.
+- Leaves stored override Repeat rules on the series; open the series editor to change them.
 - Deletes this event, this and following, or all events in a recurring series from the panel confirm.
 
-This is menu-bar parity, not a replacement for Chroncal's full TUI. Recurrence authoring, timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
+This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 
 ## Requirements
 
