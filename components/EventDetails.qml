@@ -183,39 +183,42 @@ Item {
         width: parent.width
         spacing: Style.space(3)
 
-        Row {
-          width: parent.width
-          spacing: Style.space(6)
-
-          Text {
-            text: "LOCATION"
-            color: Util.alpha(root.foreground, 0.52)
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            font.letterSpacing: 1
-            anchors.verticalCenter: parent.verticalCenter
-          }
-
-          PanelActionButton {
-            iconText: "󰍎"
-            tooltipText: "Open location in maps"
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            focusable: true
-            enabled: Model.eventMapUrl(root.eventData) !== "" && !root.busy
-            onClicked: root.mapRequested()
-          }
+        Text {
+          text: "LOCATION"
+          color: Util.alpha(root.foreground, 0.52)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          font.letterSpacing: 1
         }
 
         Text {
+          id: locationText
           width: parent.width
           text: root.eventData.location || ""
           textFormat: Text.PlainText
-          color: root.foreground
+          color: locationMouse.containsMouse
+            ? Qt.lighter(root.notesLinkColor, 1.18)
+            : root.notesLinkColor
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           wrapMode: Text.Wrap
+          opacity: locationMouse.enabled ? 1 : 0.55
+
+          MouseArea {
+            id: locationMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            enabled: Model.eventMapUrl(root.eventData) !== "" && !root.busy
+            onClicked: root.mapRequested()
+          }
+
+          PanelToolTip {
+            visible: locationMouse.containsMouse
+            text: "Open location in maps"
+            fontFamily: root.fontFamily
+          }
         }
       }
 

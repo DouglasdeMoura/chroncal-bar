@@ -24,7 +24,7 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Turns http(s) URLs in notes into clickable links colored with the Omarchy theme accent.
 - Opens Google Meet links as the calendar owner account (`authuser`).
 - Wraps long titles instead of cropping them.
-- Opens maps from a control next to LOCATION when the event has a place.
+- Opens maps from the location address when the event has a place.
 - Opens meeting links, participant email, and Chroncal.
 - Copies complete event details to the clipboard.
 - Creates, edits, and deletes Chroncal events without shell interpolation.
