@@ -16,7 +16,6 @@ Item {
 
   signal joinRequested()
   signal mapRequested()
-  signal emailRequested()
   signal copyRequested()
   signal chroncalRequested()
   signal editRequested()
@@ -349,16 +348,6 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         spacing: Style.space(18)
-
-        PanelActionButton {
-          iconText: "󰇮"
-          tooltipText: "Email participants"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          focusable: true
-          enabled: Model.eventMailUrl(root.eventData) !== "" && !root.busy
-          onClicked: root.emailRequested()
-        }
 
         PanelActionButton {
           iconText: "󰆏"

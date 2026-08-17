@@ -1114,13 +1114,6 @@ function eventAttributes(event) {
   return values.join(" · ");
 }
 
-function eventMailUrl(event) {
-  var attendees = event && event.attendees ? event.attendees : [];
-  var emails = attendees.map(function(attendee) { return String(attendee.email || ""); })
-    .filter(function(email) { return email !== ""; });
-  return emails.length === 0 ? "" : "mailto:" + encodeURIComponent(emails.join(","));
-}
-
 function humanRsvp(value) {
   var normalized = String(value || "").toLowerCase();
   return normalized === "" ? "No response" : normalized.charAt(0).toUpperCase() + normalized.slice(1);

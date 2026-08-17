@@ -449,11 +449,6 @@ Panel {
     openUrl(Model.eventMapUrl(selectedEvent))
   }
 
-  function emailParticipants() {
-    if (mutationBusy || editLoadBusy) return
-    openUrl(Model.eventMailUrl(selectedEvent))
-  }
-
   function copyEventDetails() {
     if (mutationBusy || editLoadBusy) return
     var details = Model.eventDetailsText(selectedEvent)
@@ -753,7 +748,6 @@ Panel {
             busy: root.mutationBusy || root.editLoadBusy
             onJoinRequested: root.joinEvent()
             onMapRequested: root.openMap()
-            onEmailRequested: root.emailParticipants()
             onCopyRequested: root.copyEventDetails()
             onChroncalRequested: root.openChroncal()
             onEditRequested: root.startEdit()

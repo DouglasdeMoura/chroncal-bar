@@ -134,7 +134,6 @@ assert.match(coloredNotes, /<font color="#644AC9">https:\/\/tel\.meet\/ssq-outo-
 assert.equal(model.eventNotesHtml(meetNotesEvent, "javascript:alert(1)"), notesHtml);
 assert.match(model.eventAttributes({ status: "CONFIRMED", class: "PRIVATE", transp: "TRANSPARENT", recurrence_rule: "FREQ=WEEKLY" }), /Confirmed · Private · Free · Recurring/);
 assert.equal(model.eventMapUrl(detailedEvent), "https://www.google.com/maps/search/?api=1&query=Rua%20Exemplo%2010%2C%20Curitiba");
-assert.equal(model.eventMailUrl(detailedEvent), "mailto:alice%40example.test%2Cbob%40example.test");
 assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "launch").map(event => event.id), [1]);
 assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "alice").map(event => event.id), [1]);
 assert.deepEqual(model.searchEvents([{ ...detailedEvent, calendar_name: "Work" }, events[1]], "work").map(event => event.id), [1]);
