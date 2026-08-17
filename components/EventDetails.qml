@@ -4,7 +4,7 @@ import qs.Commons
 import qs.Ui
 import "../Model.js" as Model
 
-Flickable {
+Item {
   id: root
 
   property var bar: null
@@ -28,177 +28,196 @@ Flickable {
   readonly property bool canDelete: Model.canDeleteEvent(eventData)
   readonly property bool recurring: Model.isRecurringEvent(eventData)
 
-  contentWidth: width
-  contentHeight: detailsColumn.implicitHeight
-  clip: true
-  boundsBehavior: Flickable.StopAtBounds
-  flickableDirection: Flickable.VerticalFlick
-  interactive: contentHeight > height
-  ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+  onEventDataChanged: detailsFlick.contentY = 0
 
-  Column {
-    id: detailsColumn
-    width: root.width
-    spacing: Style.space(12)
+  Flickable {
+    id: detailsFlick
+    anchors.top: parent.top
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.bottom: actionsFooter.top
+    anchors.bottomMargin: Style.space(12)
+    contentWidth: width
+    contentHeight: detailsColumn.implicitHeight
+    clip: true
+    boundsBehavior: Flickable.StopAtBounds
+    flickableDirection: Flickable.VerticalFlick
+    interactive: contentHeight > height
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-    Text {
-      width: parent.width
-      text: root.eventData.title || "Untitled"
-      textFormat: Text.PlainText
-      color: root.foreground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.title
-      font.bold: true
-      elide: Text.ElideRight
-    }
+    Column {
+      id: detailsColumn
+      width: detailsFlick.width
+      spacing: Style.space(12)
 
-    Rectangle {
-      width: parent.width
-      implicitHeight: eventSummary.implicitHeight + Style.space(20)
-      radius: Style.cornerRadius
-      color: Util.alpha(root.foreground, 0.06)
+      Text {
+        width: parent.width
+        text: root.eventData.title || "Untitled"
+        textFormat: Text.PlainText
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.title
+        font.bold: true
+        elide: Text.ElideRight
+      }
 
       Rectangle {
-        width: Style.space(3)
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        radius: width / 2
-        color: root.eventData.calendar_color || "#888888"
+        width: parent.width
+        implicitHeight: eventSummary.implicitHeight + Style.space(20)
+        radius: Style.cornerRadius
+        color: Util.alpha(root.foreground, 0.06)
+
+        Rectangle {
+          width: Style.space(3)
+          anchors.left: parent.left
+          anchors.top: parent.top
+          anchors.bottom: parent.bottom
+          radius: width / 2
+          color: root.eventData.calendar_color || "#888888"
+        }
+
+        Column {
+          id: eventSummary
+          anchors.left: parent.left
+          anchors.leftMargin: Style.space(14)
+          anchors.right: parent.right
+          anchors.rightMargin: Style.space(12)
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(5)
+
+          Text {
+            width: parent.width
+            text: Model.formatEventRange(root.eventData)
+            textFormat: Text.PlainText
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+          }
+
+          Text {
+            width: parent.width
+            text: root.eventData.calendar_name || "Calendar"
+            textFormat: Text.PlainText
+            color: Util.alpha(root.foreground, 0.62)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+        }
+      }
+
+      Text {
+        visible: Model.eventAttributes(root.eventData) !== ""
+        width: parent.width
+        text: Model.eventAttributes(root.eventData)
+        textFormat: Text.PlainText
+        color: Util.alpha(root.foreground, 0.54)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
       }
 
       Column {
-        id: eventSummary
-        anchors.left: parent.left
-        anchors.leftMargin: Style.space(14)
-        anchors.right: parent.right
-        anchors.rightMargin: Style.space(12)
-        anchors.verticalCenter: parent.verticalCenter
-        spacing: Style.space(5)
+        visible: String(root.eventData.location || "") !== ""
+        width: parent.width
+        spacing: Style.space(3)
+
+        Text {
+          text: "LOCATION"
+          color: Util.alpha(root.foreground, 0.52)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          font.letterSpacing: 1
+        }
 
         Text {
           width: parent.width
-          text: Model.formatEventRange(root.eventData)
+          text: root.eventData.location || ""
           textFormat: Text.PlainText
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
+          wrapMode: Text.Wrap
+        }
+      }
+
+      Column {
+        visible: String(root.eventData.description || "") !== ""
+        width: parent.width
+        spacing: Style.space(3)
+
+        Text {
+          text: "NOTES"
+          color: Util.alpha(root.foreground, 0.52)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
           font.bold: true
+          font.letterSpacing: 1
         }
 
         Text {
           width: parent.width
-          text: root.eventData.calendar_name || "Calendar"
+          text: root.eventData.description || ""
           textFormat: Text.PlainText
-          color: Util.alpha(root.foreground, 0.62)
+          color: Util.alpha(root.foreground, 0.82)
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          elide: Text.ElideRight
+          font.pixelSize: Style.font.body
+          wrapMode: Text.Wrap
         }
       }
-    }
 
-    Text {
-      visible: Model.eventAttributes(root.eventData) !== ""
-      width: parent.width
-      text: Model.eventAttributes(root.eventData)
-      textFormat: Text.PlainText
-      color: Util.alpha(root.foreground, 0.54)
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      elide: Text.ElideRight
-    }
+      Column {
+        visible: (root.eventData.attendees || []).length > 0
+        width: parent.width
+        spacing: Style.space(3)
 
-    Column {
-      visible: String(root.eventData.location || "") !== ""
-      width: parent.width
-      spacing: Style.space(3)
+        Text {
+          text: "PARTICIPANTS"
+          color: Util.alpha(root.foreground, 0.52)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          font.letterSpacing: 1
+        }
+
+        Text {
+          width: parent.width
+          text: Model.attendeeSummary(root.eventData)
+          textFormat: Text.PlainText
+          color: Util.alpha(root.foreground, 0.82)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          wrapMode: Text.Wrap
+        }
+      }
 
       Text {
-        text: "LOCATION"
-        color: Util.alpha(root.foreground, 0.52)
+        visible: root.recurring
+        width: parent.width
+        text: root.generatedRecurring ? "The pencil edits this entire recurring series. The trash can remove this event, this and following, or all events." : "The trash can remove this event, this and following, or all events."
+        textFormat: Text.PlainText
+        color: Util.alpha(root.foreground, 0.62)
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
-        font.bold: true
-        font.letterSpacing: 1
-      }
-
-      Text {
-        width: parent.width
-        text: root.eventData.location || ""
-        textFormat: Text.PlainText
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        wrapMode: Text.Wrap
+        wrapMode: Text.WordWrap
       }
     }
+  }
 
-    Column {
-      visible: String(root.eventData.description || "") !== ""
-      width: parent.width
-      spacing: Style.space(3)
-
-      Text {
-        text: "NOTES"
-        color: Util.alpha(root.foreground, 0.52)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.bold: true
-        font.letterSpacing: 1
-      }
-
-      Text {
-        width: parent.width
-        text: root.eventData.description || ""
-        textFormat: Text.PlainText
-        color: Util.alpha(root.foreground, 0.82)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        wrapMode: Text.Wrap
-      }
-    }
-
-    Column {
-      visible: (root.eventData.attendees || []).length > 0
-      width: parent.width
-      spacing: Style.space(3)
-
-      Text {
-        text: "PARTICIPANTS"
-        color: Util.alpha(root.foreground, 0.52)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.bold: true
-        font.letterSpacing: 1
-      }
-
-      Text {
-        width: parent.width
-        text: Model.attendeeSummary(root.eventData)
-        textFormat: Text.PlainText
-        color: Util.alpha(root.foreground, 0.82)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        wrapMode: Text.Wrap
-      }
-    }
+  Column {
+    id: actionsFooter
+    z: 1
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.bottom: parent.bottom
+    spacing: Style.space(12)
 
     Rectangle {
       width: parent.width
       height: 1
       color: Util.alpha(root.foreground, 0.12)
-    }
-
-    Text {
-      visible: root.recurring
-      width: parent.width
-      text: root.generatedRecurring ? "The pencil edits this entire recurring series. The trash can remove this event, this and following, or all events." : "The trash can remove this event, this and following, or all events."
-      textFormat: Text.PlainText
-      color: Util.alpha(root.foreground, 0.62)
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      wrapMode: Text.WordWrap
     }
 
     Text {
