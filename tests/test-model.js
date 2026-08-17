@@ -48,6 +48,23 @@ assert.equal(model.clampSelection(4, 3), 2);
 assert.equal(model.clampSelection(0, 0), -1);
 assert.equal(model.firstEventIndexForDate(events, "2026-08-15T12:00:00Z"), 0);
 assert.equal(model.firstEventIndexForDate(events.slice(1), "2026-08-15T12:00:00Z"), -1);
+const dayEvents = [
+  { id: 10, start_time: "2026-08-16T09:00:00Z" },
+  { id: 11, start_time: "2026-08-16T15:00:00Z" },
+  { id: 12, start_time: "2026-08-17T08:00:00Z" },
+  { id: 13, start_time: "2026-08-19T10:00:00Z" }
+];
+assert.equal(model.eventDateKey(dayEvents[0]), "2026-08-16");
+assert.equal(model.firstEventIndexForDay(dayEvents, "2026-08-17"), 2);
+assert.equal(model.firstEventIndexForDay(dayEvents, "2026-08-18"), -1);
+assert.equal(model.adjacentDayFirstEventIndex(dayEvents, 0, 1), 2);
+assert.equal(model.adjacentDayFirstEventIndex(dayEvents, 1, 1), 2);
+assert.equal(model.adjacentDayFirstEventIndex(dayEvents, 2, 1), 3);
+assert.equal(model.adjacentDayFirstEventIndex(dayEvents, 3, 1), -1);
+assert.equal(model.adjacentDayFirstEventIndex(dayEvents, 3, -1), 2);
+assert.equal(model.adjacentDayFirstEventIndex(dayEvents, 2, -1), 0);
+assert.equal(model.adjacentDayFirstEventIndex(dayEvents, 0, -1), -1);
+assert.equal(model.adjacentDayFirstEventIndex([], 0, 1), -1);
 
 const detailedEvent = {
   ...events[0],

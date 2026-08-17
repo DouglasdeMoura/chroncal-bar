@@ -105,6 +105,38 @@ function firstEventIndexForDate(events, nowValue) {
   return -1;
 }
 
+function eventDateKey(event) {
+  var start = parseDate(event && event.start_time);
+  return start ? dateKey(start) : "";
+}
+
+function firstEventIndexForDay(events, dayKey) {
+  var key = String(dayKey || "");
+  if (key === "") return -1;
+  for (var index = 0; index < (events || []).length; index += 1) {
+    if (eventDateKey(events[index]) === key) return index;
+  }
+  return -1;
+}
+
+function adjacentDayFirstEventIndex(events, currentIndex, direction) {
+  var list = events || [];
+  if (list.length === 0 || direction === 0) return -1;
+  var current = currentIndex >= 0 && currentIndex < list.length ? list[currentIndex] : null;
+  var currentKey = eventDateKey(current);
+  var targetKey = "";
+  for (var index = 0; index < list.length; index += 1) {
+    var key = eventDateKey(list[index]);
+    if (key === "") continue;
+    if (direction > 0) {
+      if ((currentKey === "" || key > currentKey) && (targetKey === "" || key < targetKey)) targetKey = key;
+    } else if (currentKey !== "" && key < currentKey && (targetKey === "" || key > targetKey)) {
+      targetKey = key;
+    }
+  }
+  return firstEventIndexForDay(list, targetKey);
+}
+
 function eventKey(event) {
   if (!event) return "";
   var identity = String(event.uid || event.id || "");
