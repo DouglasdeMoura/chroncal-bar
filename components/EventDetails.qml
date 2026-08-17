@@ -183,13 +183,29 @@ Item {
         width: parent.width
         spacing: Style.space(3)
 
-        Text {
-          text: "LOCATION"
-          color: Util.alpha(root.foreground, 0.52)
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          font.bold: true
-          font.letterSpacing: 1
+        Row {
+          width: parent.width
+          spacing: Style.space(6)
+
+          Text {
+            text: "LOCATION"
+            color: Util.alpha(root.foreground, 0.52)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            font.letterSpacing: 1
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          PanelActionButton {
+            iconText: "󰍎"
+            tooltipText: "Open location in maps"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            focusable: true
+            enabled: Model.eventMapUrl(root.eventData) !== "" && !root.busy
+            onClicked: root.mapRequested()
+          }
         }
 
         Text {
@@ -290,16 +306,6 @@ Item {
         focusable: true
         enabled: Model.eventOpenUrl(root.eventData) !== "" && !root.busy
         onClicked: root.joinRequested()
-      }
-
-      PanelActionButton {
-        iconText: "󰍎"
-        tooltipText: "Open location in maps"
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        focusable: true
-        enabled: Model.eventMapUrl(root.eventData) !== "" && !root.busy
-        onClicked: root.mapRequested()
       }
 
       PanelActionButton {
