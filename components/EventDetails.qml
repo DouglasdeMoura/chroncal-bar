@@ -220,15 +220,6 @@ Item {
       color: Util.alpha(root.foreground, 0.12)
     }
 
-    Text {
-      text: "QUICK ACTIONS"
-      color: Util.alpha(root.foreground, 0.52)
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      font.bold: true
-      font.letterSpacing: 1
-    }
-
     Row {
       width: parent.width
       spacing: Style.space(18)
