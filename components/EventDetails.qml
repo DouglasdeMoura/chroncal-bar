@@ -192,32 +192,56 @@ Item {
           font.letterSpacing: 1
         }
 
-        Text {
-          id: locationText
+        Item {
+          id: locationLine
           width: parent.width
-          text: root.eventData.location || ""
-          textFormat: Text.PlainText
-          color: locationMouse.containsMouse
-            ? Qt.lighter(root.notesLinkColor, 1.18)
-            : root.notesLinkColor
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          wrapMode: Text.Wrap
-          opacity: locationMouse.enabled ? 1 : 0.55
+          height: locationText.height
 
-          MouseArea {
-            id: locationMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            enabled: Model.eventMapUrl(root.eventData) !== "" && !root.busy
-            onClicked: root.mapRequested()
-          }
+          Item {
+            id: locationCluster
+            width: locationText.width + (locationOpenIcon.visible ? Style.space(4) + locationOpenIcon.width : 0)
+            height: locationText.height
 
-          PanelToolTip {
-            visible: locationMouse.containsMouse
-            text: "Open location in maps"
-            fontFamily: root.fontFamily
+            Text {
+              id: locationText
+              width: Math.min(implicitWidth, locationLine.width - (locationOpenIcon.visible ? Style.space(4) + locationOpenIcon.width : 0))
+              text: root.eventData.location || ""
+              textFormat: Text.PlainText
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              wrapMode: Text.Wrap
+            }
+
+            Text {
+              id: locationOpenIcon
+              anchors.left: locationText.right
+              anchors.leftMargin: Style.space(4)
+              anchors.bottom: locationText.bottom
+              text: "󰏌"
+              color: locationMouse.containsMouse
+                ? Qt.lighter(root.notesLinkColor, 1.18)
+                : root.notesLinkColor
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              visible: Model.eventMapUrl(root.eventData) !== ""
+              opacity: root.busy ? 0.55 : 1
+            }
+
+            MouseArea {
+              id: locationMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+              enabled: Model.eventMapUrl(root.eventData) !== "" && !root.busy
+              onClicked: root.mapRequested()
+            }
+
+            PanelToolTip {
+              visible: locationMouse.containsMouse
+              text: "Open location in maps"
+              fontFamily: root.fontFamily
+            }
           }
         }
       }
