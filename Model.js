@@ -999,9 +999,72 @@ function firstUrlInText(value) {
   return match ? match[0].replace(/[.,;:!?]+$/, "") : "";
 }
 
+function urlHost(value) {
+  var match = String(value || "").match(/^https?:\/\/([^/:?#]+)/i);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function isGoogleAuthuserHost(host) {
+  var name = String(host || "").toLowerCase();
+  if (name === "meet.google.com" || name === "calendar.google.com") return true;
+  return name === "docs.google.com" || name.slice(-16) === ".docs.google.com";
+}
+
+function withGoogleAuthuser(url, email) {
+  var address = String(url || "");
+  var user = String(email || "").trim();
+  if (address === "" || user === "") return address;
+  if (/[?&]authuser=/i.test(address)) return address;
+  if (!isGoogleAuthuserHost(urlHost(address))) return address;
+  var hashIndex = address.indexOf("#");
+  var hash = "";
+  if (hashIndex >= 0) {
+    hash = address.slice(hashIndex);
+    address = address.slice(0, hashIndex);
+  }
+  var separator = address.indexOf("?") >= 0 ? "&" : "?";
+  return address + separator + "authuser=" + encodeURIComponent(user) + hash;
+}
+
+function eventJoinEmail(event) {
+  return event ? String(event.calendar_owner_email || "").trim() : "";
+}
+
+function rewriteOpenUrl(url, event) {
+  return withGoogleAuthuser(url, eventJoinEmail(event));
+}
+
 function eventOpenUrl(event) {
   if (!event) return "";
-  return String(event.conference_url || event.url || firstUrlInText(event.location) || firstUrlInText(event.description) || "");
+  var url = String(event.conference_url || event.url || firstUrlInText(event.location) || firstUrlInText(event.description) || "");
+  return rewriteOpenUrl(url, event);
+}
+
+function eventNotesHtml(event) {
+  var text = event ? String(event.description || "") : "";
+  if (text === "") return "";
+  var email = eventJoinEmail(event);
+  var pattern = /https?:\/\/[^\s<>()]+/ig;
+  var html = "";
+  var lastIndex = 0;
+  var match;
+  while ((match = pattern.exec(text)) !== null) {
+    var raw = match[0];
+    var trailing = "";
+    var cleaned = raw.replace(/[.,;:!?]+$/, function(punctuation) {
+      trailing = punctuation;
+      return "";
+    });
+    html += escapeHtml(text.slice(lastIndex, match.index)).replace(/\n/g, "<br/>");
+    if (cleaned !== "") {
+      var href = withGoogleAuthuser(cleaned, email);
+      html += '<a href="' + escapeHtml(href) + '">' + escapeHtml(cleaned) + "</a>";
+    }
+    html += escapeHtml(trailing);
+    lastIndex = match.index + raw.length;
+  }
+  html += escapeHtml(text.slice(lastIndex)).replace(/\n/g, "<br/>");
+  return html;
 }
 
 function eventMapUrl(event) {

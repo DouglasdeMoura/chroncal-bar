@@ -759,6 +759,7 @@ Panel {
             onEditRequested: root.startEdit()
             onDeleteRequested: root.requestDelete()
             onRsvpRequested: function(status) { root.rsvpEvent(status) }
+            onLinkRequested: function(url) { root.openUrl(url) }
           }
 
           EventEditor {

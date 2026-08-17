@@ -105,6 +105,25 @@ const detailedEvent = {
 assert.equal(model.eventOpenUrl(detailedEvent), "https://meet.example.test/room");
 assert.equal(model.eventOpenUrl({ location: "Join at https://meet.example.test/from-location", description: "Fallback https://notes.example.test" }), "https://meet.example.test/from-location");
 assert.equal(model.eventOpenUrl({ description: "Notes: https://notes.example.test/doc." }), "https://notes.example.test/doc");
+assert.equal(model.withGoogleAuthuser("https://meet.google.com/ssq-outo-obp", "douglas.demoura@familywellhealth.com"), "https://meet.google.com/ssq-outo-obp?authuser=douglas.demoura%40familywellhealth.com");
+assert.equal(model.withGoogleAuthuser("https://meet.google.com/abc?hs=7", "me@example.com"), "https://meet.google.com/abc?hs=7&authuser=me%40example.com");
+assert.equal(model.withGoogleAuthuser("https://meet.google.com/abc?authuser=other@x.com", "me@example.com"), "https://meet.google.com/abc?authuser=other@x.com");
+assert.equal(model.withGoogleAuthuser("https://tel.meet/abc?pin=1", "me@example.com"), "https://tel.meet/abc?pin=1");
+assert.equal(model.withGoogleAuthuser("https://example.test/room", "me@example.com"), "https://example.test/room");
+assert.equal(model.withGoogleAuthuser("https://meet.google.com/abc", ""), "https://meet.google.com/abc");
+const meetNotesEvent = {
+  calendar_owner_email: "douglas.demoura@familywellhealth.com",
+  description: "Join with Google Meet: https://meet.google.com/ssq-outo-obp\nMore: https://tel.meet/ssq-outo-obp?pin=1\n<script>x</script>"
+};
+assert.equal(model.eventOpenUrl(meetNotesEvent), "https://meet.google.com/ssq-outo-obp?authuser=douglas.demoura%40familywellhealth.com");
+assert.equal(model.eventOpenUrl({ conference_url: "https://meet.google.com/abc-defg-hij", calendar_owner_email: "me@example.com" }), "https://meet.google.com/abc-defg-hij?authuser=me%40example.com");
+const notesHtml = model.eventNotesHtml(meetNotesEvent);
+assert.match(notesHtml, /href="https:\/\/meet\.google\.com\/ssq-outo-obp\?authuser=douglas\.demoura%40familywellhealth\.com"/);
+assert.match(notesHtml, />https:\/\/meet\.google\.com\/ssq-outo-obp</);
+assert.match(notesHtml, /href="https:\/\/tel\.meet\/ssq-outo-obp\?pin=1"/);
+assert.match(notesHtml, /&lt;script&gt;x&lt;\/script&gt;/);
+assert.match(notesHtml, /<br\/>/);
+assert.equal(model.eventNotesHtml({ description: "" }), "");
 assert.match(model.eventAttributes({ status: "CONFIRMED", class: "PRIVATE", transp: "TRANSPARENT", recurrence_rule: "FREQ=WEEKLY" }), /Confirmed · Private · Free · Recurring/);
 assert.equal(model.eventMapUrl(detailedEvent), "https://www.google.com/maps/search/?api=1&query=Rua%20Exemplo%2010%2C%20Curitiba");
 assert.equal(model.eventMailUrl(detailedEvent), "mailto:alice%40example.test%2Cbob%40example.test");

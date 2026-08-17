@@ -22,6 +22,7 @@ Item {
   signal editRequested()
   signal deleteRequested()
   signal rsvpRequested(string status)
+  signal linkRequested(string url)
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -217,12 +218,19 @@ Item {
 
         Text {
           width: parent.width
-          text: root.eventData.description || ""
-          textFormat: Text.PlainText
+          text: Model.eventNotesHtml(root.eventData)
+          textFormat: Text.RichText
           color: Util.alpha(root.foreground, 0.82)
+          linkColor: Color.accent
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           wrapMode: Text.Wrap
+          onLinkActivated: function(link) { root.linkRequested(link) }
+
+          HoverHandler {
+            enabled: parent.hoveredLink !== ""
+            cursorShape: Qt.PointingHandCursor
+          }
         }
       }
 
