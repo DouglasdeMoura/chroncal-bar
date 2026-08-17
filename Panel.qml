@@ -505,7 +505,6 @@ Panel {
 
       Column {
         anchors.fill: parent
-        anchors.margins: Style.space(16)
         spacing: Style.space(10)
 
         Row {
@@ -560,7 +559,7 @@ Panel {
 
         Item {
           width: parent.width
-          height: parent.height - Style.space(50)
+          height: Math.max(0, parent.height - y)
 
           TextField {
             id: searchField
