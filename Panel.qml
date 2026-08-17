@@ -543,39 +543,11 @@ Panel {
 
             PanelActionButton {
               visible: !root.showingSubview
-              iconText: "󰒓"
-              tooltipText: "Calendar settings"
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
-              onClicked: root.toggleSettings()
-            }
-
-            PanelActionButton {
-              visible: !root.showingSubview
-              iconText: "?"
-              tooltipText: "Keyboard shortcuts"
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
-              onClicked: root.toggleHelp()
-            }
-
-            PanelActionButton {
-              visible: !root.showingSubview
               iconText: "+"
               tooltipText: "Create event"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: root.startCreate()
-            }
-
-            PanelActionButton {
-              visible: !root.showingSubview
-              iconText: "󰑐"
-              tooltipText: root.hostWidget && root.hostWidget.loading ? "Refreshing" : "Refresh agenda"
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
-              enabled: !(root.hostWidget && root.hostWidget.loading)
-              onClicked: root.refresh()
             }
           }
         }
@@ -641,6 +613,7 @@ Panel {
           Text {
             visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
+            anchors.verticalCenterOffset: settingsFooter.visible ? -settingsFooter.height / 2 : 0
             width: parent.width - Style.space(24)
             text: "Chroncal is unavailable\nThe agenda will retry automatically."
             color: Util.alpha(root.contentForeground, 0.66)
@@ -653,6 +626,7 @@ Panel {
           Text {
             visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length === 0
             anchors.centerIn: parent
+            anchors.verticalCenterOffset: settingsFooter.visible ? -settingsFooter.height / 2 : 0
             text: root.searchQuery !== "" ? "No matching events" : "No upcoming events"
             color: Util.alpha(root.contentForeground, 0.66)
             font.family: root.contentFontFamily
@@ -666,7 +640,7 @@ Panel {
             anchors.topMargin: searchField.visible ? Style.space(10) : 0
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.bottom: parent.bottom
+            anchors.bottom: settingsFooter.top
             contentWidth: width
             contentHeight: groupsColumn.implicitHeight
             clip: true
@@ -776,6 +750,47 @@ Panel {
             foreground: root.contentForeground
             fontFamily: root.contentFontFamily
             onCloseRequested: root.toggleHelp()
+          }
+
+          Item {
+            id: settingsFooter
+            visible: !root.showingSubview
+            height: visible ? 1 + Style.space(6) + Style.space(32) : 0
+            z: 1
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+
+            Rectangle {
+              width: parent.width
+              height: 1
+              color: Util.alpha(root.contentForeground, 0.12)
+            }
+
+            Rectangle {
+              anchors.fill: parent
+              anchors.topMargin: 1
+              radius: Style.cornerRadius
+              color: settingsFooterMouse.containsMouse ? Util.alpha(root.contentForeground, 0.10) : "transparent"
+            }
+
+            Text {
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.verticalCenterOffset: 1
+              text: "Calendar Settings…"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.body
+            }
+
+            MouseArea {
+              id: settingsFooterMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.toggleSettings()
+            }
           }
 
         }
