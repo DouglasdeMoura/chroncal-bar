@@ -321,16 +321,20 @@ Item {
       color: Util.alpha(root.foreground, 0.12)
     }
 
-    Row {
+    Item {
       width: parent.width
-      spacing: Style.space(18)
+      height: Math.max(joinButton.height, actionIcons.height)
 
       Button {
+        id: joinButton
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        visible: Model.eventOpenUrl(root.eventData) !== ""
         text: "Join"
         tooltipText: "Join or open event link"
         bordered: true
         focusable: true
-        enabled: Model.eventOpenUrl(root.eventData) !== "" && !root.busy
+        enabled: visible && !root.busy
         opacity: enabled ? 1 : 0.55
         foreground: root.foreground
         fontFamily: root.fontFamily
@@ -340,54 +344,61 @@ Item {
         onClicked: root.joinRequested()
       }
 
-      PanelActionButton {
-        iconText: "󰇮"
-        tooltipText: "Email participants"
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        focusable: true
-        enabled: Model.eventMailUrl(root.eventData) !== "" && !root.busy
-        onClicked: root.emailRequested()
-      }
+      Row {
+        id: actionIcons
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(18)
 
-      PanelActionButton {
-        iconText: "󰆏"
-        tooltipText: "Copy event details"
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        focusable: true
-        enabled: !root.busy
-        onClicked: root.copyRequested()
-      }
+        PanelActionButton {
+          iconText: "󰇮"
+          tooltipText: "Email participants"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          focusable: true
+          enabled: Model.eventMailUrl(root.eventData) !== "" && !root.busy
+          onClicked: root.emailRequested()
+        }
 
-      PanelActionButton {
-        iconText: "󰃭"
-        tooltipText: "Open Chroncal"
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        focusable: true
-        enabled: !root.busy
-        onClicked: root.chroncalRequested()
-      }
+        PanelActionButton {
+          iconText: "󰆏"
+          tooltipText: "Copy event details"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          focusable: true
+          enabled: !root.busy
+          onClicked: root.copyRequested()
+        }
 
-      PanelActionButton {
-        iconText: "󰏫"
-        tooltipText: root.generatedRecurring ? "Edit recurring series" : "Edit event"
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        focusable: true
-        enabled: !root.busy && root.canEdit
-        onClicked: root.editRequested()
-      }
+        PanelActionButton {
+          iconText: "󰃭"
+          tooltipText: "Open Chroncal"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          focusable: true
+          enabled: !root.busy
+          onClicked: root.chroncalRequested()
+        }
 
-      PanelActionButton {
-        iconText: "󰆴"
-        tooltipText: root.recurring ? "Delete this event, this and following, or all events" : "Delete event"
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        focusable: true
-        enabled: root.canDelete && !root.busy
-        onClicked: root.deleteRequested()
+        PanelActionButton {
+          iconText: "󰏫"
+          tooltipText: root.generatedRecurring ? "Edit recurring series" : "Edit event"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          focusable: true
+          enabled: !root.busy && root.canEdit
+          onClicked: root.editRequested()
+        }
+
+        PanelActionButton {
+          iconText: "󰆴"
+          tooltipText: root.recurring ? "Delete this event, this and following, or all events" : "Delete event"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          focusable: true
+          enabled: root.canDelete && !root.busy
+          onClicked: root.deleteRequested()
+        }
       }
     }
 
