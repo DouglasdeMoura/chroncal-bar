@@ -34,6 +34,7 @@ Item {
   readonly property bool canRsvp: Model.canRsvp(eventData)
   readonly property var rsvpChoices: Model.rsvpChoices()
   readonly property string eventDateLabel: Model.formatEventDate(eventData, nowIso)
+  readonly property color notesLinkColor: Color.accent
 
   onEventDataChanged: detailsFlick.contentY = 0
 
@@ -217,11 +218,12 @@ Item {
         }
 
         Text {
+          id: notesText
           width: parent.width
-          text: Model.eventNotesHtml(root.eventData)
+          text: Model.eventNotesHtml(root.eventData, notesText.hoveredLink !== "" ? Qt.lighter(root.notesLinkColor, 1.18) : root.notesLinkColor)
           textFormat: Text.RichText
           color: Util.alpha(root.foreground, 0.82)
-          linkColor: Color.accent
+          linkColor: root.notesLinkColor
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           wrapMode: Text.Wrap

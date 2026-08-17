@@ -184,6 +184,28 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
+function htmlColor(value) {
+  if (value && typeof value === "object" && isFinite(value.r) && isFinite(value.g) && isFinite(value.b)) {
+    function channel(n) {
+      var v = Math.round(Number(n) * 255);
+      if (v < 0) v = 0;
+      if (v > 255) v = 255;
+      var hex = v.toString(16);
+      return hex.length === 1 ? "0" + hex : hex;
+    }
+    return "#" + channel(value.r) + channel(value.g) + channel(value.b);
+  }
+  var text = String(value || "").trim();
+  var argb = text.match(/^#([0-9A-Fa-f]{2})([0-9A-Fa-f]{6})$/);
+  if (argb) return "#" + argb[2];
+  var hex = text.match(/^#([0-9A-Fa-f]{6})$/);
+  if (hex) return "#" + hex[1];
+  var shortHex = text.match(/^#([0-9A-Fa-f]{3})$/);
+  if (!shortHex) return "";
+  var digits = shortHex[1];
+  return "#" + digits.charAt(0) + digits.charAt(0) + digits.charAt(1) + digits.charAt(1) + digits.charAt(2) + digits.charAt(2);
+}
+
 function richText(value) {
   return "<span>" + value + "</span>";
 }
@@ -1040,10 +1062,11 @@ function eventOpenUrl(event) {
   return rewriteOpenUrl(url, event);
 }
 
-function eventNotesHtml(event) {
+function eventNotesHtml(event, linkColor) {
   var text = event ? String(event.description || "") : "";
   if (text === "") return "";
   var email = eventJoinEmail(event);
+  var color = htmlColor(linkColor);
   var pattern = /https?:\/\/[^\s<>()]+/ig;
   var html = "";
   var lastIndex = 0;
@@ -1058,7 +1081,9 @@ function eventNotesHtml(event) {
     html += escapeHtml(text.slice(lastIndex, match.index)).replace(/\n/g, "<br/>");
     if (cleaned !== "") {
       var href = withGoogleAuthuser(cleaned, email);
-      html += '<a href="' + escapeHtml(href) + '">' + escapeHtml(cleaned) + "</a>";
+      var label = escapeHtml(cleaned);
+      if (color !== "") label = '<font color="' + color + '">' + label + "</font>";
+      html += '<a href="' + escapeHtml(href) + '">' + label + "</a>";
     }
     html += escapeHtml(trailing);
     lastIndex = match.index + raw.length;

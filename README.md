@@ -21,7 +21,7 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Filters hidden calendars and supports per-calendar inclusion.
 - Searches titles, descriptions, locations, calendar names, and participants.
 - Shows the event date, location, notes, conferencing links, attendees, and RSVP state.
-- Turns http(s) URLs in notes into clickable links.
+- Turns http(s) URLs in notes into clickable links colored with the Omarchy theme accent.
 - Opens Google Meet links as the calendar owner account (`authuser`).
 - Wraps long titles instead of cropping them.
 - Opens meeting links, maps, participant email, and Chroncal.
