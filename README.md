@@ -2,7 +2,7 @@
 
 An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chroncal](https://github.com/DouglasdeMoura/chroncal).
 
-![Chroncal Bar showing an upcoming event in the Omarchy bar](preview.png)
+![Chroncal Bar agenda opened from the Omarchy menu bar](preview.png)
 
 ## Features
 
