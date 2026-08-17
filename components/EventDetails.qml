@@ -216,7 +216,7 @@ Flickable {
 
       PanelActionButton {
         iconText: "󰏌"
-        tooltipText: "Join or open event link (v)"
+        tooltipText: "Join or open event link"
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
@@ -246,7 +246,7 @@ Flickable {
 
       PanelActionButton {
         iconText: "󰆏"
-        tooltipText: "Copy event details (p)"
+        tooltipText: "Copy event details"
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true
@@ -256,7 +256,7 @@ Flickable {
 
       PanelActionButton {
         iconText: "󰃭"
-        tooltipText: "Open Chroncal (g)"
+        tooltipText: "Open Chroncal"
         foreground: root.foreground
         fontFamily: root.fontFamily
         focusable: true

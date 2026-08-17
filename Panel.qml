@@ -553,7 +553,7 @@ Panel {
             PanelActionButton {
               visible: !root.showingSubview
               iconText: "?"
-              tooltipText: "Keyboard shortcuts (?)"
+              tooltipText: "Keyboard shortcuts"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: root.toggleHelp()
@@ -562,7 +562,7 @@ Panel {
             PanelActionButton {
               visible: !root.showingSubview
               iconText: "+"
-              tooltipText: "Create event (c)"
+              tooltipText: "Create event"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: root.startCreate()
@@ -571,7 +571,7 @@ Panel {
             PanelActionButton {
               visible: !root.showingSubview
               iconText: "󰑐"
-              tooltipText: root.hostWidget && root.hostWidget.loading ? "Refreshing" : "Refresh agenda (s)"
+              tooltipText: root.hostWidget && root.hostWidget.loading ? "Refreshing" : "Refresh agenda"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               enabled: !(root.hostWidget && root.hostWidget.loading)
