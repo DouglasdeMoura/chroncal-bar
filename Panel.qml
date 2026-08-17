@@ -800,7 +800,7 @@ Panel {
           Item {
             id: settingsFooter
             visible: !root.showingSubview
-            height: visible ? 1 + Style.space(6) + Style.space(32) : 0
+            height: visible ? 1 + Style.space(6) + settingsCog.height : 0
             z: 1
             anchors.left: parent.left
             anchors.right: parent.right
@@ -812,28 +812,16 @@ Panel {
               color: Util.alpha(root.contentForeground, 0.12)
             }
 
-            Rectangle {
-              anchors.fill: parent
-              anchors.topMargin: 1
-              radius: Style.cornerRadius
-              color: settingsFooterMouse.containsMouse ? Util.alpha(root.contentForeground, 0.10) : "transparent"
-            }
-
-            Text {
-              anchors.left: parent.left
+            PanelActionButton {
+              id: settingsCog
+              anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
-              anchors.verticalCenterOffset: 1
-              text: "Calendar Settings…"
-              color: root.contentForeground
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.body
-            }
-
-            MouseArea {
-              id: settingsFooterMouse
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
+              anchors.verticalCenterOffset: 0.5
+              iconText: "󰒓"
+              tooltipText: "Calendar Settings"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              focusable: true
               onClicked: root.toggleSettings()
             }
           }
