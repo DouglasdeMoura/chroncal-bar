@@ -261,16 +261,6 @@ Item {
         }
       }
 
-      Text {
-        visible: root.recurring
-        width: parent.width
-        text: root.generatedRecurring ? "The pencil edits this entire recurring series. The trash can remove this event, this and following, or all events." : "The trash can remove this event, this and following, or all events."
-        textFormat: Text.PlainText
-        color: Util.alpha(root.foreground, 0.62)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        wrapMode: Text.WordWrap
-      }
     }
   }
 
