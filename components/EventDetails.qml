@@ -359,6 +359,24 @@ Item {
         onClicked: root.joinRequested()
       }
 
+      Text {
+        visible: root.actionStatus !== ""
+        text: root.actionStatus
+        textFormat: Text.PlainText
+        color: Util.alpha(root.foreground, 0.62)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
+        wrapMode: Text.NoWrap
+        maximumLineCount: 1
+        verticalAlignment: Text.AlignVCenter
+        anchors.left: parent.left
+        anchors.leftMargin: joinButton.visible ? joinButton.width + Style.space(12) : 0
+        anchors.right: actionIcons.left
+        anchors.rightMargin: Style.space(12)
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
       Row {
         id: actionIcons
         anchors.right: parent.right
@@ -385,15 +403,6 @@ Item {
           onClicked: root.deleteRequested()
         }
       }
-    }
-
-    Text {
-      visible: root.actionStatus !== ""
-      text: root.actionStatus
-      textFormat: Text.PlainText
-      color: Util.alpha(root.foreground, 0.62)
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
     }
   }
 }
