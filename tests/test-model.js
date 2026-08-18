@@ -630,3 +630,97 @@ assert.equal(model.userRsvpStatus(accepted), "ACCEPTED");
 assert.equal(accepted.attendees[0].rsvp_status, "ACCEPTED");
 assert.equal(accepted.attendees[1].rsvp_status, "TENTATIVE");
 assert.equal(invitedEvent.attendees[0].rsvp_status, "NEEDS-ACTION");
+
+// Task 7: account and calendar setup command args
+
+assert.deepEqual(model.accountAddArgs({
+  name: "Work",
+  server: "https://cal.example.com/dav/",
+  username: "alice",
+  auth: "basic"
+}), ["account", "add", "--server", "https://cal.example.com/dav/", "--username", "alice", "--auth", "basic", "--output", "json", "--", "Work"]);
+
+assert.ok(!model.accountAddArgs({ name: "W", server: "https://x.example.com/", username: "a", auth: "basic" }).includes("--allow-insecure"));
+assert.ok(model.accountAddArgs({ name: "W", server: "http://x.example.com/", username: "a", auth: "basic", allowInsecure: true }).includes("--allow-insecure"));
+
+assert.deepEqual(model.accountAddArgs({
+  name: "G",
+  username: "you@x.com",
+  auth: "oauth2",
+  clientId: "id.apps.googleusercontent.com"
+}), ["account", "add", "--server", "https://apidata.googleusercontent.com/caldav", "--username", "you@x.com", "--auth", "oauth2", "--oauth-client-id", "id.apps.googleusercontent.com", "--output", "json", "--", "G"]);
+
+assert.deepEqual(model.accountAddEnv({ auth: "basic", password: "secret" }), { CHRONCAL_PASSWORD: "secret" });
+assert.deepEqual(model.accountAddEnv({ auth: "bearer", token: "tok" }), { CHRONCAL_BEARER_TOKEN: "tok" });
+assert.deepEqual(model.accountAddEnv({ auth: "oauth2", clientSecret: "goc" }), { GOOGLE_CLIENT_SECRET: "goc" });
+assert.deepEqual(model.accountAddEnv({ auth: "basic" }), {});
+assert.deepEqual(model.accountAddEnv({ auth: "basic", password: "" }), {});
+assert.deepEqual(model.accountAddEnv({ auth: "basic", password: "p", token: "leak" }), { CHRONCAL_PASSWORD: "p" });
+
+assert.deepEqual(model.accountCredentialsEnv({ auth: "basic", password: "next" }), { CHRONCAL_PASSWORD: "next" });
+assert.deepEqual(model.accountCredentialsEnv({ auth: "bearer", token: "nt" }), { CHRONCAL_BEARER_TOKEN: "nt" });
+assert.deepEqual(model.accountCredentialsEnv({ auth: "oauth2", clientSecret: "s" }), {});
+
+assert.ok(model.validateAccountForm({ name: "Work", server: "https://cal.example.com/dav/", username: "alice", auth: "basic", password: "x" }).length === 0);
+assert.ok(model.validateAccountForm({ name: "", server: "", username: "", auth: "basic", password: "" }).length > 0);
+assert.ok(model.validateAccountForm({ name: "G", server: "http://example.com", username: "a", auth: "basic", password: "x", allowInsecure: false }).some(e => /http|insecure/i.test(e)));
+assert.ok(model.validateAccountForm({ name: "G", server: "http://127.0.0.1:5232", username: "a", auth: "basic", password: "x", allowInsecure: false }).length === 0);
+assert.ok(model.validateAccountForm({ name: "G", server: "http://localhost:5232", username: "a", auth: "basic", password: "x" }).length === 0);
+assert.ok(model.validateAccountForm({ name: "G", server: "http://example.com", username: "a", auth: "basic", password: "x", allowInsecure: true }).length === 0);
+assert.ok(model.validateAccountForm({ name: "G", server: "", username: "you@x.com", auth: "oauth2", clientId: "id.apps.googleusercontent.com", clientSecret: "s" }).length === 0);
+assert.equal(model.defaultAccountServer("oauth2"), "https://apidata.googleusercontent.com/caldav");
+assert.equal(model.defaultAccountServer("basic"), "");
+
+assert.ok(model.validateAccountForm({ name: "G", server: "https://x.example.com/", username: "a", auth: "basic" }).some(e => /password/i.test(e)));
+assert.ok(model.validateAccountForm({ name: "G", server: "https://x.example.com/", username: "a", auth: "bearer" }).some(e => /token/i.test(e)));
+assert.ok(model.validateAccountForm({ name: "G", server: "https://x.example.com/", username: "a", auth: "oauth2", clientSecret: "s" }).some(e => /client id/i.test(e)));
+assert.ok(model.validateAccountForm({ name: "G", server: "https://x.example.com/", username: "a", auth: "oauth2", clientId: "cid" }).some(e => /client secret/i.test(e)));
+assert.ok(model.validateAccountForm({ name: "G", server: "", username: "a", auth: "basic", password: "x" }).some(e => /server/i.test(e)));
+assert.ok(model.validateAccountForm({ name: "G", server: "https://x.example.com/", username: "", auth: "basic", password: "x" }).some(e => /username/i.test(e)));
+assert.ok(model.validateAccountForm({ name: "", server: "https://x.example.com/", username: "a", auth: "basic", password: "x" }).some(e => /name/i.test(e)));
+
+assert.deepEqual(model.calendarCreateArgs({ title: "Personal", color: "#3B82F6", email: "me@x.com" }), ["calendar", "create", "--color", "#3B82F6", "--email", "me@x.com", "--output", "json", "--", "Personal"]);
+assert.deepEqual(model.calendarCreateArgs({ title: "Plain" }), ["calendar", "create", "--output", "json", "--", "Plain"]);
+assert.deepEqual(model.calendarCreateArgs({ title: "D", color: "", description: "Desc", email: "" }), ["calendar", "create", "--description", "Desc", "--output", "json", "--", "D"]);
+
+assert.deepEqual(model.calendarUpdateArgs({ id: 2, name: "Renamed", color: "#00FF00" }), ["calendar", "update", "2", "--name", "Renamed", "--color", "#00FF00", "--output", "json"]);
+assert.deepEqual(model.calendarUpdateArgs({ id: 2, name: "Same", description: "", email: "" }), ["calendar", "update", "2", "--name", "Same", "--output", "json"]);
+assert.deepEqual(model.calendarUpdateArgs({ id: 5, disconnectRemote: true }), ["calendar", "update", "5", "--disconnect-remote", "--output", "json"]);
+
+assert.deepEqual(model.calendarHideArgs({ id: 4 }), ["calendar", "hide", "4", "--output", "json"]);
+assert.deepEqual(model.calendarShowArgs({ id: 4 }), ["calendar", "show", "4", "--output", "json"]);
+assert.deepEqual(model.calendarSetDefaultArgs({ id: 4 }), ["calendar", "set-default", "4", "--output", "json"]);
+assert.deepEqual(model.calendarDeleteArgs({ id: 4 }), ["calendar", "delete", "4", "--yes", "--output", "json"]);
+assert.deepEqual(model.calendarDeleteArgs({ id: 4, promote: "Work" }), ["calendar", "delete", "4", "--promote", "Work", "--yes", "--output", "json"]);
+
+assert.deepEqual(model.accountRemoveArgs({ id: 3 }), ["account", "remove", "3", "--yes", "--output", "json"]);
+assert.deepEqual(model.syncRunAccountArgs({ id: 3 }), ["sync", "run", "--account", "3", "--output", "json"]);
+assert.deepEqual(model.icalImportArgs({ path: "/tmp/a.ics", calendar: "Work" }), ["ical", "import", "/tmp/a.ics", "--calendar", "Work", "--output", "json"]);
+
+assert.deepEqual(
+  model.accountCalendarsSetArgs({ id: 3, paths: ["/cal/a/", "/cal/b/"], defaultRef: "/cal/a/" }),
+  ["account", "calendars", "set", "3", "--yes", "--calendar", "/cal/a/", "--calendar", "/cal/b/", "--default", "/cal/a/", "--output", "json"]
+);
+assert.deepEqual(model.accountCalendarsSetArgs({ id: 3, all: true }), ["account", "calendars", "set", "3", "--yes", "--all", "--output", "json"]);
+assert.deepEqual(model.accountCalendarsSetArgs({ id: 3, none: true, defaultRef: "Local" }), ["account", "calendars", "set", "3", "--yes", "--none", "--default", "Local", "--output", "json"]);
+assert.deepEqual(model.accountCalendarsSetArgs({ id: 3 }), []);
+assert.deepEqual(model.accountCalendarsSetArgs({ id: 3, paths: ["/cal/a/"], all: true }), []);
+
+const dashNameAdd = model.accountAddArgs({ name: "-dash", server: "https://x.example.com/", username: "a", auth: "basic" });
+assert.deepEqual(dashNameAdd.slice(-2), ["--", "-dash"]);
+assert.deepEqual(model.calendarCreateArgs({ title: "-dash" }).slice(-2), ["--", "-dash"]);
+
+const secretBearingForm = {
+  name: "W",
+  server: "https://x.example.com/",
+  username: "a",
+  auth: "basic",
+  password: "pw-secret",
+  token: "tok-secret",
+  clientSecret: "goc-secret"
+};
+const secretBearingArgs = model.accountAddArgs(secretBearingForm).join(" ");
+assert.ok(secretBearingArgs.indexOf("pw-secret") === -1);
+assert.ok(secretBearingArgs.indexOf("tok-secret") === -1);
+assert.ok(secretBearingArgs.indexOf("goc-secret") === -1);
+assert.deepEqual(model.accountAddEnv(secretBearingForm), { CHRONCAL_PASSWORD: "pw-secret" });

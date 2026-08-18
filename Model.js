@@ -1073,6 +1073,148 @@ function chroncalLaunchArgs(event) {
   return args;
 }
 
+function defaultAccountServer(auth) {
+  return String(auth || "") === "oauth2" ? "https://apidata.googleusercontent.com/caldav" : "";
+}
+
+function accountAddArgs(form) {
+  var values = form || {};
+  var server = String(values.server || "").trim() || defaultAccountServer(values.auth);
+  var args = ["account", "add"];
+  pushOptionalFlag(args, "--server", server);
+  pushOptionalFlag(args, "--username", values.username);
+  pushOptionalFlag(args, "--auth", values.auth);
+  pushOptionalFlag(args, "--oauth-client-id", values.clientId);
+  if (values.allowInsecure === true) args.push("--allow-insecure");
+  args.push("--output", "json", "--", String(values.name || "").trim());
+  return args;
+}
+
+function accountSecretEnv(auth, password, token, clientSecret) {
+  var env = {};
+  var type = String(auth || "");
+  if (type === "basic" && String(password || "") !== "") env.CHRONCAL_PASSWORD = String(password);
+  if (type === "bearer" && String(token || "") !== "") env.CHRONCAL_BEARER_TOKEN = String(token);
+  if (type === "oauth2" && String(clientSecret || "") !== "") env.GOOGLE_CLIENT_SECRET = String(clientSecret);
+  return env;
+}
+
+function accountAddEnv(form) {
+  var values = form || {};
+  return accountSecretEnv(values.auth, values.password, values.token, values.clientSecret);
+}
+
+function accountCredentialsEnv(form) {
+  var values = form || {};
+  return accountSecretEnv(values.auth, values.password, values.token, "");
+}
+
+function serverHost(value) {
+  var match = String(value || "").match(/^https?:\/\/(\[[^\]]+\]|[^\/:?#]+)/i);
+  return match ? match[1].toLowerCase().replace(/^\[|\]$/g, "") : "";
+}
+
+function isLoopbackHost(host) {
+  var name = String(host || "").toLowerCase();
+  return name === "localhost" || name === "127.0.0.1" || name === "::1";
+}
+
+function validateAccountForm(form) {
+  var values = form || {};
+  var errors = [];
+  var auth = String(values.auth || "");
+  if (String(values.name || "").trim() === "") errors.push("Account name is required");
+  if (auth !== "basic" && auth !== "bearer" && auth !== "oauth2") errors.push("Choose a sign-in method");
+  var server = String(values.server || "").trim() || defaultAccountServer(auth);
+  if (server === "" && auth !== "oauth2") errors.push("Server URL is required");
+  if (String(values.username || "").trim() === "") errors.push("Username is required");
+  if (auth === "basic" && String(values.password || "") === "") errors.push("Password is required");
+  if (auth === "bearer" && String(values.token || "") === "") errors.push("Bearer token is required");
+  if (auth === "oauth2") {
+    if (String(values.clientId || "").trim() === "") errors.push("OAuth client ID is required");
+    if (String(values.clientSecret || "") === "") errors.push("OAuth client secret is required");
+  }
+  if (/^http:\/\//i.test(server) && !isLoopbackHost(serverHost(server)) && values.allowInsecure !== true)
+    errors.push("Server URL uses plain HTTP; enable Allow HTTP (insecure) or use HTTPS");
+  return errors;
+}
+
+function calendarCreateArgs(form) {
+  var values = form || {};
+  var args = ["calendar", "create"];
+  pushOptionalFlag(args, "--color", values.color);
+  pushOptionalFlag(args, "--description", values.description);
+  pushOptionalFlag(args, "--email", values.email);
+  args.push("--output", "json", "--", String(values.title || "").trim());
+  return args;
+}
+
+function calendarUpdateArgs(form) {
+  var values = form || {};
+  var args = ["calendar", "update", String(values.id || "")];
+  pushOptionalFlag(args, "--name", values.name);
+  pushOptionalFlag(args, "--color", values.color);
+  pushOptionalFlag(args, "--description", values.description);
+  pushOptionalFlag(args, "--email", values.email);
+  if (values.disconnectRemote === true) args.push("--disconnect-remote");
+  args.push("--output", "json");
+  return args;
+}
+
+function calendarHideArgs(calendar) {
+  return ["calendar", "hide", String((calendar || {}).id || ""), "--output", "json"];
+}
+
+function calendarShowArgs(calendar) {
+  return ["calendar", "show", String((calendar || {}).id || ""), "--output", "json"];
+}
+
+function calendarSetDefaultArgs(calendar) {
+  return ["calendar", "set-default", String((calendar || {}).id || ""), "--output", "json"];
+}
+
+function calendarDeleteArgs(calendar) {
+  var values = calendar || {};
+  var args = ["calendar", "delete", String(values.id || "")];
+  pushOptionalFlag(args, "--promote", values.promote);
+  args.push("--yes", "--output", "json");
+  return args;
+}
+
+function accountRemoveArgs(account) {
+  return ["account", "remove", String((account || {}).id || ""), "--yes", "--output", "json"];
+}
+
+function accountCalendarsSetArgs(options) {
+  var values = options || {};
+  var paths = [];
+  for (var i = 0; i < (values.paths || []).length; i += 1) {
+    if (String(values.paths[i] || "") !== "") paths.push(String(values.paths[i]));
+  }
+  var all = values.all === true;
+  var none = values.none === true;
+  if ((paths.length > 0 ? 1 : 0) + (all ? 1 : 0) + (none ? 1 : 0) !== 1) return [];
+  var args = ["account", "calendars", "set", String(values.id || ""), "--yes"];
+  if (all) args.push("--all");
+  if (none) args.push("--none");
+  for (var j = 0; j < paths.length; j += 1) args.push("--calendar", paths[j]);
+  pushOptionalFlag(args, "--default", values.defaultRef);
+  args.push("--output", "json");
+  return args;
+}
+
+function syncRunAccountArgs(account) {
+  return ["sync", "run", "--account", String((account || {}).id || ""), "--output", "json"];
+}
+
+function icalImportArgs(options) {
+  var values = options || {};
+  var args = ["ical", "import", String(values.path || "")];
+  pushOptionalFlag(args, "--calendar", values.calendar);
+  args.push("--output", "json");
+  return args;
+}
+
 function showOpenInChroncalEnabled(settings) {
   return optionEnabled(settings, "showOpenInChroncal", false);
 }
