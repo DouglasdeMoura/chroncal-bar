@@ -21,6 +21,8 @@ Flickable {
   property string showOpenInChroncal: "Off"
 
   signal configurationChanged(var values)
+  signal newCalendarRequested()
+  signal editCalendarRequested(var calendar)
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -45,6 +47,84 @@ Flickable {
       font.pixelSize: Style.font.caption
       font.bold: true
       font.letterSpacing: 1
+    }
+
+    Button {
+      width: parent.width
+      text: "New calendar"
+      bordered: true
+      focusable: true
+      leftAlign: true
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onClicked: root.newCalendarRequested()
+    }
+
+    // Minimal calendar rows so the editor is reachable. Task 12 replaces
+    // this with the grouped account manager.
+    Column {
+      visible: root.calendars.length > 0
+      width: parent.width
+      spacing: Style.space(4)
+
+      Repeater {
+        model: root.calendars
+
+        Item {
+          id: calendarRow
+          required property var modelData
+          width: parent.width
+          height: editButton.implicitHeight
+
+          Rectangle {
+            id: colorDot
+            width: Style.space(10)
+            height: Style.space(10)
+            radius: width / 2
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            color: String(calendarRow.modelData.color || "#888888")
+          }
+
+          Button {
+            id: editButton
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Edit"
+            bordered: true
+            focusable: true
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onClicked: root.editCalendarRequested(calendarRow.modelData)
+          }
+
+          Text {
+            id: stateLabel
+            visible: calendarRow.modelData.is_default === true || calendarRow.modelData.hidden === true
+            anchors.right: editButton.left
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: [calendarRow.modelData.is_default === true ? "default" : "", calendarRow.modelData.hidden === true ? "hidden" : ""].filter(function(part) { return part !== "" }).join(" · ")
+            color: Util.alpha(root.foreground, 0.52)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          Text {
+            anchors.left: colorDot.right
+            anchors.leftMargin: Style.space(8)
+            anchors.right: stateLabel.visible ? stateLabel.left : editButton.left
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: String(calendarRow.modelData.name || "")
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            elide: Text.ElideRight
+          }
+        }
+      }
     }
 
     MultiSelect {
