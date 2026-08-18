@@ -1081,11 +1081,11 @@ function accountAddArgs(form) {
   var values = form || {};
   var server = String(values.server || "").trim() || defaultAccountServer(values.auth);
   var args = ["account", "add"];
-  pushOptionalFlag(args, "--server", server);
+  if (!serverHasCredentials(server)) pushOptionalFlag(args, "--server", server);
   pushOptionalFlag(args, "--username", values.username);
   pushOptionalFlag(args, "--auth", values.auth);
   pushOptionalFlag(args, "--oauth-client-id", values.clientId);
-  if (values.allowInsecure === true) args.push("--allow-insecure");
+  if (values.allowInsecure === true || isLoopbackHttpServer(server)) args.push("--allow-insecure");
   args.push("--output", "json", "--", String(values.name || "").trim());
   return args;
 }
@@ -1119,6 +1119,14 @@ function isLoopbackHost(host) {
   return name === "localhost" || name === "127.0.0.1" || name === "::1";
 }
 
+function isLoopbackHttpServer(value) {
+  return /^http:\/\//i.test(String(value || "")) && isLoopbackHost(serverHost(value));
+}
+
+function serverHasCredentials(value) {
+  return /:\/\/[^\/?#]*@/.test(String(value || ""));
+}
+
 function validateAccountForm(form) {
   var values = form || {};
   var errors = [];
@@ -1128,13 +1136,14 @@ function validateAccountForm(form) {
   var server = String(values.server || "").trim() || defaultAccountServer(auth);
   if (server === "" && auth !== "oauth2") errors.push("Server URL is required");
   if (String(values.username || "").trim() === "") errors.push("Username is required");
+  if (serverHasCredentials(server)) errors.push("Server URL must not include credentials");
   if (auth === "basic" && String(values.password || "") === "") errors.push("Password is required");
   if (auth === "bearer" && String(values.token || "") === "") errors.push("Bearer token is required");
   if (auth === "oauth2") {
     if (String(values.clientId || "").trim() === "") errors.push("OAuth client ID is required");
     if (String(values.clientSecret || "") === "") errors.push("OAuth client secret is required");
   }
-  if (/^http:\/\//i.test(server) && !isLoopbackHost(serverHost(server)) && values.allowInsecure !== true)
+  if (/^http:\/\//i.test(server) && !isLoopbackHttpServer(server) && values.allowInsecure !== true)
     errors.push("Server URL uses plain HTTP; enable Allow HTTP (insecure) or use HTTPS");
   return errors;
 }
@@ -1184,12 +1193,12 @@ function calendarDeleteArgs(calendar) {
 function accountRemoveArgs(account) {
   return ["account", "remove", String((account || {}).id || ""), "--yes", "--output", "json"];
 }
-
 function accountCalendarsSetArgs(options) {
   var values = options || {};
   var paths = [];
   for (var i = 0; i < (values.paths || []).length; i += 1) {
-    if (String(values.paths[i] || "") !== "") paths.push(String(values.paths[i]));
+    var path = String(values.paths[i] || "").trim();
+    if (path !== "") paths.push(path);
   }
   var all = values.all === true;
   var none = values.none === true;
