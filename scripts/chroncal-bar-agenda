@@ -67,6 +67,8 @@ if ! jq -cn \
   --argjson hidden_calendar_ids "$hidden_calendar_ids" '
   def calendar_for($id):
     (first($calendars[]? | select(.id == $id)) // {});
+  def calendar_hidden($calendar):
+    (($calendar.hidden == true) or (($hidden_calendar_ids | index($calendar.id)) != null));
   def fallback_color($value):
     if ($value // "") == "" then "#888888" else $value end;
   def normalized_event:
@@ -108,7 +110,7 @@ if ! jq -cn \
   ([
     $events[]?
     | . as $event
-    | select(($hidden_calendar_ids | index($event.calendar_id)) == null)
+    | select((calendar_for($event.calendar_id) | calendar_hidden(.)) | not)
     | select((.status // "CONFIRMED") != "CANCELLED")
     | select((.end_time | fromdateiso8601) > $now)
     | normalized_event
@@ -126,7 +128,13 @@ if ! jq -cn \
             color: fallback_color(.color),
             owner_email: (.owner_email // ""),
             is_default: (.is_default == true),
-            hidden: (($hidden_calendar_ids | index($calendar.id)) != null)
+            hidden: calendar_hidden(.),
+            account_id: (.account_id // 0),
+            account_name: (.account_name // ""),
+            remote_url: (.remote_url // ""),
+            remote_access: (.remote_access // ""),
+            last_sync_at: (.last_sync_at // ""),
+            last_sync_error: (.last_sync_error // "")
           }
       ],
       events: $visible_events,

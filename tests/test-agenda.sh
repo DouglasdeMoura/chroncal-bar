@@ -21,6 +21,7 @@ jq -e '
   .status == "ok"
   and .range == {from:"2026-08-15", to:"2026-08-16"}
   and (.events | map(.title)) == ["Standup", "Pairing", "Personal", "Release day"]
+  and ((.events | map(.title)) | index("JSON hidden meeting")) == null
   and .next.title == "Standup"
   and .next.calendar_color == "#ff3366"
   and .next.conference_url == "https://meet.example.test/standup"
@@ -32,7 +33,23 @@ jq -e '
   and (.events[2].calendar_color == "#888888")
   and (.events[3].all_day == true)
   and (.events[2].recurrence_rule == "FREQ=WEEKLY;BYDAY=SA")
-  and (.calendars | map(select(.hidden == true).id)) == [2]
+  and (.calendars | map(select(.hidden == true).id)) == [2, 4]
+  and (.calendars[] | select(.id==1)
+      | .account_id == 9
+      and .account_name == "Work CalDAV"
+      and .remote_url == "https://cal.example.test/dav/work/"
+      and .remote_access == "write"
+      and .last_sync_at == "2026-08-15T11:00:00Z"
+      and .last_sync_error == "")
+  and (.calendars[] | select(.id==2) | .hidden == true)
+  and (.calendars[] | select(.id==3)
+      | .account_id == 0
+      and .account_name == ""
+      and .remote_url == ""
+      and .remote_access == ""
+      and .last_sync_at == ""
+      and .last_sync_error == "")
+  and (.calendars[] | select(.id==4) | .hidden == true)
 ' <<<"$output" >/dev/null
 
 grep -Fx 'event list --from 2026-08-15 --to 2026-08-16 --output json' "$TMP/chroncal.log" >/dev/null
