@@ -20,7 +20,7 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Groups events under Today, Tomorrow, and later dates.
 - Filters hidden calendars and supports per-calendar inclusion.
 - Searches titles, descriptions, locations, calendar names, and participants.
-- Shows the event date, location, notes, conferencing links, attendees, and RSVP state.
+- Shows the event date, location, notes, conferencing links, attendees, RSVP state, and who organized the event.
 - Turns http(s) URLs in notes into clickable links colored with the Omarchy theme accent.
 - Opens Google Meet links as the calendar owner account (`authuser`).
 - Wraps long titles instead of cropping them.

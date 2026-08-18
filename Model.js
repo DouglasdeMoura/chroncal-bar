@@ -1134,11 +1134,16 @@ function humanRsvp(value) {
   return normalized === "" ? "No response" : normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function attendeeStatusLabel(attendee) {
+  if (attendee && attendee.organizer === true) return "Organizer";
+  return humanRsvp(attendee && attendee.rsvp_status);
+}
+
 function attendeeSummary(event) {
   var attendees = event && event.attendees ? event.attendees : [];
   return attendees.map(function(attendee) {
     var identity = String(attendee.name || attendee.email || "Guest");
-    return identity + " · " + humanRsvp(attendee.rsvp_status);
+    return identity + " · " + attendeeStatusLabel(attendee);
   }).join("\n");
 }
 
@@ -1155,7 +1160,7 @@ function eventDetailsText(event, nowValue) {
   attendees.forEach(function(attendee) {
     var identity = String(attendee.name || attendee.email || "Guest");
     var email = attendee.email && attendee.name ? " <" + attendee.email + ">" : "";
-    lines.push(identity + email + " · " + humanRsvp(attendee.rsvp_status));
+    lines.push(identity + email + " · " + attendeeStatusLabel(attendee));
   });
   if (event.url) lines.push(String(event.url));
   return lines.join("\n");

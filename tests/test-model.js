@@ -148,6 +148,16 @@ assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "alice").map(eve
 assert.deepEqual(model.searchEvents([{ ...detailedEvent, calendar_name: "Work" }, events[1]], "work").map(event => event.id), [1]);
 assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "  ").map(event => event.id), [1, 2]);
 assert.match(model.attendeeSummary(detailedEvent), /Alice · Accepted/);
+const organizedEvent = {
+  ...detailedEvent,
+  attendees: [
+    { name: "Alice", email: "alice@example.test", rsvp_status: "ACCEPTED", organizer: true },
+    { name: "Bob", email: "bob@example.test", rsvp_status: "TENTATIVE", organizer: false }
+  ]
+};
+assert.equal(model.attendeeSummary(organizedEvent), "Alice · Organizer\nBob · Tentative");
+assert.match(model.eventDetailsText(organizedEvent, "2026-08-15T12:00:00Z"), /Alice <alice@example.test> · Organizer/);
+assert.match(model.eventDetailsText(organizedEvent, "2026-08-15T12:00:00Z"), /Bob <bob@example.test> · Tentative/);
 assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /Current/);
 assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /Today, August 15/);
 assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /11:30–12:30/);
