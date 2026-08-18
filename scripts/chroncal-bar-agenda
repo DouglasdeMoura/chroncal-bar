@@ -126,6 +126,7 @@ if ! jq -cn \
             id,
             name: (.name // "Calendar"),
             color: fallback_color(.color),
+            description: (.description // ""),
             owner_email: (.owner_email // ""),
             is_default: (.is_default == true),
             hidden: calendar_hidden(.),

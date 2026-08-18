@@ -29,9 +29,12 @@ Panel {
   property string editorMode: ""
   readonly property bool showingEditor: editorMode !== ""
   readonly property bool showingDetails: selectedEvent !== null && !showingEditor
+  property string calendarEditorMode: ""
+  property var calendarEditorTarget: null
+  readonly property bool showingCalendarEditor: calendarEditorMode !== ""
   property bool showingSettings: false
   property bool showingHelp: false
-  readonly property bool showingSubview: showingDetails || showingEditor || showingSettings || showingHelp
+  readonly property bool showingSubview: showingDetails || showingEditor || showingCalendarEditor || showingSettings || showingHelp
   property bool mutationBusy: false
   property string mutationKind: ""
   property string mutationError: ""
@@ -47,6 +50,8 @@ Panel {
   property string editLoadStdoutText: ""
   property string editLoadStderrText: ""
   property var pendingDeleteEvent: null
+  property var pendingDeleteCalendarValues: null
+  property string pendingDefaultName: ""
   property bool rsvpRefreshPending: false
   property string rsvpExpectedStatus: ""
 
@@ -65,12 +70,19 @@ Panel {
     root.selectedEventKey = ""
     root.resetSearch()
     root.editorMode = ""
+    root.closeCalendarEditorState()
     root.showingSettings = false
     root.showingHelp = false
     root.resetEditState()
     root.pendingDeleteEvent = null
     deleteConfirm.opened = false
     root.controller.hide()
+  }
+
+  function closeCalendarEditorState() {
+    calendarEditorMode = ""
+    calendarEditorTarget = null
+    pendingDeleteCalendarValues = null
   }
 
   function toggle() {
@@ -88,6 +100,7 @@ Panel {
     selectedEventKey = Model.eventKey(eventData)
     selectedEvent = eventData
     editorMode = ""
+    closeCalendarEditorState()
     showingSettings = false
     showingHelp = false
     actionStatus = ""
@@ -100,6 +113,7 @@ Panel {
     rsvpExpectedStatus = ""
     selectedEvent = null
     editorMode = ""
+    closeCalendarEditorState()
     showingSettings = false
     showingHelp = false
     actionStatus = ""
@@ -110,6 +124,7 @@ Panel {
   function toggleSettings() {
     selectedEvent = null
     editorMode = ""
+    closeCalendarEditorState()
     showingHelp = false
     showingSettings = showingSettings ? false : true
     resetEditState()
@@ -165,10 +180,19 @@ Panel {
     if (index >= 0) selectedEventKey = Model.eventKey(visibleEvents[index])
   }
 
+  function dismissCalendarDeleteConfirm() {
+    deleteConfirm.opened = false
+    pendingDeleteEvent = null
+    pendingDeleteCalendarValues = null
+    if (showingCalendarEditor) Qt.callLater(function() { calendarEditor.forceActiveFocus() })
+    else Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
   function handleClose() {
     if (deleteConfirm.opened) {
-      deleteConfirm.opened = false
-      pendingDeleteEvent = null
+      dismissCalendarDeleteConfirm()
+    } else if (showingCalendarEditor) {
+      closeCalendarEditor()
     } else if (showingEditor) {
       cancelEditor()
     } else if (showingDetails || showingSettings || showingHelp) {
@@ -223,6 +247,7 @@ Panel {
   function toggleHelp() {
     selectedEvent = null
     editorMode = ""
+    closeCalendarEditorState()
     showingSettings = false
     showingHelp = showingHelp ? false : true
     resetEditState()
@@ -237,6 +262,7 @@ Panel {
 
   function startCreate() {
     selectedEvent = null
+    closeCalendarEditorState()
     showingSettings = false
     showingHelp = false
     mutationError = ""
@@ -322,6 +348,103 @@ Panel {
     openEditor(prepared, true)
   }
 
+  function openCalendarCreate() {
+    selectedEvent = null
+    editorMode = ""
+    showingHelp = false
+    mutationError = ""
+    calendarEditorTarget = null
+    calendarEditorMode = "create"
+    showingSettings = true
+    Qt.callLater(function() { calendarEditor.initialize() })
+  }
+
+  function openCalendarEdit(calendar) {
+    if (!calendar) return
+    selectedEvent = null
+    editorMode = ""
+    showingHelp = false
+    mutationError = ""
+    actionStatus = ""
+    calendarEditorTarget = calendar
+    calendarEditorMode = "edit"
+    showingSettings = true
+    Qt.callLater(function() { calendarEditor.initialize() })
+  }
+
+  function closeCalendarEditor() {
+    calendarEditorMode = ""
+    calendarEditorTarget = null
+    mutationError = ""
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function submitCalendarEditor(values) {
+    if (mutationBusy) return
+    var form = values || {}
+    var target = calendarEditorTarget || {}
+    if (form.action === "create") {
+      pendingDefaultName = form.setDefault === true ? String(form.name || "") : ""
+      runMutation(Model.calendarCreateArgs({
+        title: form.name,
+        color: form.color,
+        description: form.description,
+        email: form.email
+      }), "calendar-create")
+      return
+    }
+    if (form.action === "update") {
+      runMutation(Model.calendarUpdateArgs({
+        id: target.id,
+        name: form.name,
+        color: form.color,
+        description: form.description,
+        email: form.email
+      }), "calendar-update")
+      return
+    }
+    if (form.action === "hide") {
+      runMutation(Model.calendarHideArgs({ id: target.id }), "calendar-hide")
+      return
+    }
+    if (form.action === "show") {
+      runMutation(Model.calendarShowArgs({ id: target.id }), "calendar-show")
+      return
+    }
+    if (form.action === "default") {
+      runMutation(Model.calendarSetDefaultArgs({ id: target.id }), "calendar-default")
+      return
+    }
+    if (form.action === "disconnect") {
+      runMutation(Model.calendarUpdateArgs({ id: target.id, disconnectRemote: true }), "calendar-disconnect")
+      return
+    }
+    if (form.action === "delete") requestCalendarDelete(form)
+  }
+
+  function requestCalendarDelete(values) {
+    if (mutationBusy) return
+    pendingDeleteCalendarValues = values
+    deleteConfirm.recurring = false
+    deleteConfirm.selectedIndex = 0
+    deleteConfirm.opened = true
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function confirmCalendarDelete() {
+    deleteConfirm.opened = false
+    if (mutationBusy) {
+      pendingDeleteCalendarValues = null
+      return
+    }
+    var values = pendingDeleteCalendarValues || {}
+    pendingDeleteCalendarValues = null
+    var target = calendarEditorTarget || {}
+    var args = Model.calendarDeleteArgs({ id: target.id, promote: values.promote })
+    if (String(args[2] || "") === "") return
+    runMutation(args, "calendar-delete")
+  }
+
   function cancelEditor() {
     var wasEditing = editorMode === "edit"
     editorMode = ""
@@ -366,13 +489,19 @@ Panel {
     runMutation(args, kind)
   }
 
-  function runMutation(args, kind) {
+  function runMutation(args, kind, env) {
     if (mutationBusy || !hostWidget || !hostWidget.chroncalExecScript) return
     mutationBusy = true
     mutationKind = kind
     mutationError = ""
     mutationStdoutText = ""
     mutationStderrText = ""
+    // Quickshell.Io.Process exposes `environment` (a JS object merged over the
+    // parent environment; string values add a variable, null removes one).
+    // Secrets must travel here only, never in argv. A missing env resets any
+    // leftover variable from a previous account mutation.
+    if (env && typeof env === "object") mutationProc.environment = env
+    else mutationProc.environment = ({})
     mutationProc.command = [hostWidget.chroncalExecScript].concat(args)
     mutationProc.running = true
   }
@@ -398,9 +527,67 @@ Panel {
     runMutation(args, "rsvp-" + normalized)
   }
 
+  function isSetupKind(kind) {
+    var name = String(kind || "")
+    return name.indexOf("calendar-") === 0 || name.indexOf("account-") === 0
+      || name.indexOf("sync-") === 0 || name.indexOf("ical-") === 0
+  }
+
+  function setupActionStatus(kind) {
+    if (kind === "calendar-create") return "Calendar created"
+    if (kind === "calendar-update") return "Calendar updated"
+    if (kind === "calendar-hide") return "Calendar hidden"
+    if (kind === "calendar-show") return "Calendar visible"
+    if (kind === "calendar-default") return "Default calendar set"
+    if (kind === "calendar-disconnect") return "Kept local copy"
+    if (kind === "calendar-delete") return "Calendar deleted"
+    return "Done"
+  }
+
+  function finishSetupMutation(exitCode, completed) {
+    if (exitCode !== 0) {
+      mutationError = String(mutationStderrText || mutationStdoutText
+        || (String(completed).indexOf("calendar-") === 0 ? "Chroncal could not save the calendar" : "Chroncal could not complete the action")).trim()
+      actionStatus = mutationError
+      actionStatusTimer.restart()
+      if (showingCalendarEditor) Qt.callLater(function() { calendarEditor.forceActiveFocus() })
+      return
+    }
+    if (completed === "calendar-create" && pendingDefaultName !== "") {
+      // The create and set-default are separate processes. Chain the default
+      // step with the id Chroncal reported; without a parsable id, keep the
+      // new calendar non-default and say it was created.
+      pendingDefaultName = ""
+      var createdId = ""
+      try {
+        var created = JSON.parse(String(mutationStdoutText))
+        if (created && typeof created === "object" && created.id !== undefined) createdId = String(created.id)
+      } catch (error) {
+        createdId = ""
+      }
+      if (createdId !== "") {
+        actionStatus = "Calendar created"
+        actionStatusTimer.restart()
+        closeCalendarEditor()
+        refresh()
+        runMutation(Model.calendarSetDefaultArgs({ id: createdId }), "calendar-default")
+        return
+      }
+    }
+    actionStatus = setupActionStatus(completed)
+    actionStatusTimer.restart()
+    closeCalendarEditor()
+    refresh()
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
   function finishMutation(exitCode) {
     var completed = mutationKind
     mutationBusy = false
+    if (isSetupKind(completed)) {
+      finishSetupMutation(exitCode, completed)
+      return
+    }
     if (exitCode !== 0) {
       mutationError = String(mutationStderrText || mutationStdoutText || "Chroncal could not save the event").trim()
       actionStatus = mutationError
@@ -498,6 +685,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       blocked: (root.searching && searchField.activeFocus) || root.showingEditor
+        || (root.showingCalendarEditor && !deleteConfirm.opened)
       onMoveRequested: function(dx, dy) {
         if (deleteConfirm.opened) {
           if (dx !== 0) deleteConfirm.cycle(dx)
@@ -557,7 +745,7 @@ Panel {
           Text {
             width: parent.width - headerActions.width
             anchors.verticalCenter: parent.verticalCenter
-            text: root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : (root.showingHelp ? "SHORTCUTS" : "UPCOMING")))
+            text: root.showingCalendarEditor ? (root.calendarEditorMode === "edit" ? "EDIT CALENDAR" : "NEW CALENDAR") : (root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : (root.showingHelp ? "SHORTCUTS" : "UPCOMING"))))
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -573,11 +761,12 @@ Panel {
             PanelActionButton {
               visible: root.showingSubview
               iconText: "←"
-              tooltipText: root.showingEditor ? "Cancel and go back" : "Back to agenda"
+              tooltipText: root.showingEditor || root.showingCalendarEditor ? "Cancel and go back" : "Back to agenda"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: {
                 if (deleteConfirm.opened) deleteConfirm.opened = false
+                else if (root.showingCalendarEditor) root.closeCalendarEditor()
                 else if (root.showingEditor) root.cancelEditor()
                 else root.backToAgenda()
               }
@@ -788,7 +977,7 @@ Panel {
           }
 
           CalendarSettings {
-            visible: root.showingSettings
+            visible: root.showingSettings && !root.showingCalendarEditor
             anchors.fill: parent
             bar: root.bar
             calendars: root.calendars
@@ -803,6 +992,22 @@ Panel {
             showEventsWithoutLocation: root.setting("showEventsWithoutLocation", "On")
             showOpenInChroncal: root.setting("showOpenInChroncal", "Off")
             onConfigurationChanged: function(values) { root.persistSettings(values) }
+            onNewCalendarRequested: root.openCalendarCreate()
+            onEditCalendarRequested: function(calendar) { root.openCalendarEdit(calendar) }
+          }
+
+          CalendarEditor {
+            id: calendarEditor
+            visible: root.showingCalendarEditor
+            anchors.fill: parent
+            bar: root.bar
+            mode: root.calendarEditorMode
+            calendar: root.calendarEditorTarget
+            calendars: root.calendars
+            busy: root.mutationBusy
+            externalError: root.mutationError
+            onCanceled: root.closeCalendarEditor()
+            onSubmitted: function(values) { root.submitCalendarEditor(values) }
           }
 
           ShortcutHelp {
@@ -820,15 +1025,17 @@ Panel {
         id: deleteConfirm
         anchors.fill: parent
         z: 20
-        title: String((root.pendingDeleteEvent || root.selectedEvent) ? (root.pendingDeleteEvent || root.selectedEvent).title : "this event")
+        title: root.pendingDeleteCalendarValues !== null
+          ? String((root.calendarEditorTarget || {}).name || "this calendar")
+          : String((root.pendingDeleteEvent || root.selectedEvent) ? (root.pendingDeleteEvent || root.selectedEvent).title : "this event")
         background: root.bar ? root.bar.background : Color.background
         foreground: root.contentForeground
         fontFamily: root.contentFontFamily
-        onCanceled: {
-          opened = false
-          root.pendingDeleteEvent = null
+        onCanceled: root.dismissCalendarDeleteConfirm()
+        onChosen: function(scope) {
+          if (root.pendingDeleteCalendarValues !== null) root.confirmCalendarDelete()
+          else root.confirmDelete(scope)
         }
-        onChosen: function(scope) { root.confirmDelete(scope) }
       }
     }
   }
