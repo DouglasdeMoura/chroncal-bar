@@ -594,6 +594,15 @@ Panel {
 
             PanelActionButton {
               visible: !root.showingSubview
+              iconText: "?"
+              tooltipText: "Keyboard shortcuts"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.toggleHelp()
+            }
+
+            PanelActionButton {
+              visible: !root.showingSubview
               iconText: "+"
               tooltipText: "Create event"
               foreground: root.contentForeground
