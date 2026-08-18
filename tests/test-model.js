@@ -724,3 +724,22 @@ assert.ok(secretBearingArgs.indexOf("pw-secret") === -1);
 assert.ok(secretBearingArgs.indexOf("tok-secret") === -1);
 assert.ok(secretBearingArgs.indexOf("goc-secret") === -1);
 assert.deepEqual(model.accountAddEnv(secretBearingForm), { CHRONCAL_PASSWORD: "pw-secret" });
+
+// Loopback HTTP servers still need --allow-insecure for chroncal; URLs with
+// embedded credentials must never reach argv.
+assert.ok(model.accountAddArgs({ name: "L", server: "http://127.0.0.1:5232", username: "a", auth: "basic" }).includes("--allow-insecure"));
+assert.ok(model.accountAddArgs({ name: "L", server: "http://localhost:5232", username: "a", auth: "basic" }).includes("--allow-insecure"));
+assert.ok(!model.accountAddArgs({ name: "S", server: "https://cal.example.com/dav/", username: "a", auth: "basic" }).includes("--allow-insecure"));
+assert.ok(model.validateAccountForm({ name: "G", server: "http://alice:secret@127.0.0.1:5232", username: "a", auth: "basic", password: "x" }).some(e => /userinfo|credentials|password/i.test(e)));
+const leakArgs = model.accountAddArgs({ name: "G", server: "http://alice:secret@127.0.0.1:5232", username: "a", auth: "basic", password: "x" }).join(" ");
+assert.ok(leakArgs.indexOf("secret") === -1);
+
+assert.ok(model.validateAccountForm({ name: "G", server: "https://alice:secret@cal.example.com/dav/", username: "a", auth: "basic", password: "x" }).some(e => /credentials/i.test(e)));
+assert.ok(!model.accountAddArgs({ name: "G", server: "https://alice:secret@cal.example.com/dav/", username: "a", auth: "basic" }).some(part => String(part).indexOf("@cal.example.com") !== -1));
+assert.ok(model.accountAddArgs({ name: "L", server: "http://[::1]:5232", username: "a", auth: "basic" }).includes("--allow-insecure"));
+
+assert.deepEqual(
+  model.accountCalendarsSetArgs({ id: 3, paths: [" /cal/a/ ", "   "] }),
+  ["account", "calendars", "set", "3", "--yes", "--calendar", "/cal/a/", "--output", "json"]
+);
+assert.deepEqual(model.accountCalendarsSetArgs({ id: 3, paths: ["  ", "\t"] }), []);
