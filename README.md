@@ -97,11 +97,11 @@ The second command is optional. It places the widget beside the tray in the righ
 | `Ctrl+S` | Event editor | Save event or series |
 | `Esc` or `q` | Any panel view | Back, cancel, or close |
 
-Search opens with `/`. Subviews share one header back arrow. Create is the agenda header action. Settings is a cog at the bottom right of the agenda. Shortcut help opens with `?`. Refresh happens when the panel opens, on `s`, and on bar right-click. Event-detail buttons cover the rest.
+Search opens with `/`. Subviews share one header back arrow. Create and Settings are the agenda header actions. Shortcut help opens with `?`. Refresh happens when the panel opens, on `s`, and on bar right-click. Event-detail buttons cover the rest.
 
 ## Configure
 
-Open the agenda and press `C` or `,`, or click the settings cog at the bottom right of the agenda. Available settings:
+Open the agenda and press `C` or `,`, or click the settings cog in the header. Available settings:
 
 - Days ahead (1–30) and refresh interval.
 - Maximum bar-title length and the relative-countdown window.

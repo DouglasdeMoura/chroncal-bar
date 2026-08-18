@@ -585,6 +585,15 @@ Panel {
 
             PanelActionButton {
               visible: !root.showingSubview
+              iconText: "󰒓"
+              tooltipText: "Calendar Settings"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.toggleSettings()
+            }
+
+            PanelActionButton {
+              visible: !root.showingSubview
               iconText: "+"
               tooltipText: "Create event"
               foreground: root.contentForeground
@@ -655,7 +664,6 @@ Panel {
           Text {
             visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
-            anchors.verticalCenterOffset: settingsFooter.visible ? -settingsFooter.height / 2 : 0
             width: parent.width - Style.space(24)
             text: "Chroncal is unavailable\nThe agenda will retry automatically."
             color: Util.alpha(root.contentForeground, 0.66)
@@ -668,7 +676,6 @@ Panel {
           Text {
             visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length === 0
             anchors.centerIn: parent
-            anchors.verticalCenterOffset: settingsFooter.visible ? -settingsFooter.height / 2 : 0
             text: root.searchQuery !== "" ? "No matching events" : "No upcoming events"
             color: Util.alpha(root.contentForeground, 0.66)
             font.family: root.contentFontFamily
@@ -682,7 +689,7 @@ Panel {
             anchors.topMargin: searchField.visible ? Style.space(10) : 0
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.bottom: settingsFooter.top
+            anchors.bottom: parent.bottom
             contentWidth: width
             contentHeight: groupsColumn.implicitHeight
             clip: true
@@ -795,35 +802,6 @@ Panel {
             foreground: root.contentForeground
             fontFamily: root.contentFontFamily
             onCloseRequested: root.toggleHelp()
-          }
-
-          Item {
-            id: settingsFooter
-            visible: !root.showingSubview
-            height: visible ? 1 + Style.space(6) + settingsCog.height : 0
-            z: 1
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-
-            Rectangle {
-              width: parent.width
-              height: 1
-              color: Util.alpha(root.contentForeground, 0.12)
-            }
-
-            PanelActionButton {
-              id: settingsCog
-              anchors.right: parent.right
-              anchors.verticalCenter: parent.verticalCenter
-              anchors.verticalCenterOffset: 0.5
-              iconText: "󰒓"
-              tooltipText: "Calendar Settings"
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
-              focusable: true
-              onClicked: root.toggleSettings()
-            }
           }
 
         }
