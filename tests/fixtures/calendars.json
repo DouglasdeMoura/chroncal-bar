@@ -1,5 +1,6 @@
 [
-  {"id": 1, "name": "Work", "color": "#ff3366", "owner_email": "work@example.com", "is_default": true},
+  {"id": 1, "name": "Work", "color": "#ff3366", "owner_email": "work@example.com", "is_default": true, "account_id": 9, "account_name": "Work CalDAV", "remote_url": "https://cal.example.test/dav/work/", "remote_access": "write", "last_sync_at": "2026-08-15T11:00:00Z", "last_sync_error": ""},
   {"id": 2, "name": "Hidden", "color": "#33aa55", "owner_email": "hidden@example.com", "is_default": false},
-  {"id": 3, "name": "Personal", "color": "", "owner_email": "me@example.com", "is_default": false}
+  {"id": 3, "name": "Personal", "color": "", "owner_email": "me@example.com", "is_default": false},
+  {"id": 4, "name": "JSON Hidden", "color": "#3366ff", "owner_email": "jsonhidden@example.com", "is_default": false, "hidden": true}
 ]
