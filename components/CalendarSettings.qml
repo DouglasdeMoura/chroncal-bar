@@ -9,6 +9,7 @@ Flickable {
 
   property var bar: null
   property var calendars: []
+  property var accounts: []
   property var includedCalendarIds: []
   property bool calendarSelectionCustomized: false
   property bool busy: false
@@ -26,10 +27,10 @@ Flickable {
   signal editCalendarRequested(var calendar)
   signal addAccountRequested()
   signal openAccountRequested(var account)
+  signal importIcalRequested()
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  readonly property var accounts: Model.accountsFromCalendars(root.calendars)
 
   contentWidth: width
   contentHeight: settingsColumn.implicitHeight
@@ -53,68 +54,39 @@ Flickable {
       font.letterSpacing: 1
     }
 
-    Row {
-      width: parent.width
-      spacing: Style.space(8)
+    Repeater {
+      model: Model.groupCalendars(root.calendars, root.accounts)
 
-      Button {
-        width: (parent.width - parent.spacing) / 2
-        text: "Add account"
-        bordered: true
-        focusable: true
-        leftAlign: true
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        enabled: !root.busy
-        opacity: enabled ? 1 : 0.55
-        onClicked: root.addAccountRequested()
-      }
-
-      Button {
-        width: (parent.width - parent.spacing) / 2
-        text: "New calendar"
-        bordered: true
-        focusable: true
-        leftAlign: true
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        enabled: !root.busy
-        opacity: enabled ? 1 : 0.55
-        onClicked: root.newCalendarRequested()
-      }
-    }
-
-    // Minimal account rows so the inspector is reachable. Task 12
-    // replaces this with the grouped account manager.
-    Column {
-      visible: root.accounts.length > 0
-      width: parent.width
-      spacing: Style.space(4)
-
-      Repeater {
-        model: root.accounts
+      Column {
+        id: accountSection
+        required property var modelData
+        width: parent.width
+        spacing: Style.space(4)
 
         Item {
-          id: accountRow
-          required property var modelData
           width: parent.width
-          height: openAccountButton.implicitHeight
+          height: Math.max(sectionLabel.implicitHeight, sectionOpenButton.implicitHeight)
 
           Text {
+            id: sectionLabel
             anchors.left: parent.left
-            anchors.leftMargin: Style.space(8)
-            anchors.right: openAccountButton.left
+            anchors.right: accountSection.modelData.account !== null ? sectionOpenButton.left : parent.right
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
-            text: String(accountRow.modelData.display_name || "Account")
-            color: root.foreground
+            text: accountSection.modelData.account !== null
+              ? String(accountSection.modelData.account.display_name || accountSection.modelData.account.name || "Account")
+              : "On this computer"
+            color: Util.alpha(root.foreground, 0.52)
             font.family: root.fontFamily
-            font.pixelSize: Style.font.body
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            font.letterSpacing: 1
             elide: Text.ElideRight
           }
 
           Button {
-            id: openAccountButton
+            id: sectionOpenButton
+            visible: accountSection.modelData.account !== null
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: "Open"
@@ -124,79 +96,143 @@ Flickable {
             fontFamily: root.fontFamily
             enabled: !root.busy
             opacity: enabled ? 1 : 0.55
-            onClicked: root.openAccountRequested(accountRow.modelData)
+            onClicked: root.openAccountRequested(accountSection.modelData.account)
+          }
+        }
+
+        Text {
+          visible: accountSection.modelData.account !== null
+            && (String(accountSection.modelData.account.username || "") !== ""
+              || String(accountSection.modelData.account.auth_type || "") !== "")
+          width: parent.width
+          text: [String(accountSection.modelData.account.username || ""), String(accountSection.modelData.account.auth_type || "")]
+            .filter(function(part) { return part !== "" }).join(" · ")
+          color: Util.alpha(root.foreground, 0.52)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+        }
+
+        Repeater {
+          model: accountSection.modelData.calendars
+
+          Column {
+            id: calendarRow
+            required property var modelData
+            width: parent.width
+            spacing: Style.space(2)
+
+            Item {
+              width: parent.width
+              height: editButton.implicitHeight
+
+              Rectangle {
+                id: colorDot
+                width: Style.space(10)
+                height: Style.space(10)
+                radius: width / 2
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                color: String(calendarRow.modelData.color || "#888888")
+              }
+
+              Button {
+                id: editButton
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Edit"
+                bordered: true
+                focusable: true
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                enabled: !root.busy
+                opacity: enabled ? 1 : 0.55
+                onClicked: root.editCalendarRequested(calendarRow.modelData)
+              }
+
+              Text {
+                id: stateLabel
+                visible: stateText !== ""
+                readonly property string stateText: [calendarRow.modelData.is_default === true ? "default" : "",
+                  calendarRow.modelData.hidden === true ? "hidden" : "",
+                  String(calendarRow.modelData.remote_access || "") === "read" ? "read-only" : ""]
+                  .filter(function(part) { return part !== "" }).join(" · ")
+                anchors.right: editButton.left
+                anchors.rightMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                text: stateText
+                color: Util.alpha(root.foreground, 0.52)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+
+              Text {
+                anchors.left: colorDot.right
+                anchors.leftMargin: Style.space(8)
+                anchors.right: stateLabel.visible ? stateLabel.left : editButton.left
+                anchors.rightMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                text: String(calendarRow.modelData.name || "")
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                elide: Text.ElideRight
+              }
+            }
+
+            Text {
+              visible: String(calendarRow.modelData.last_sync_error || "") !== ""
+              width: parent.width
+              text: String(calendarRow.modelData.last_sync_error || "")
+              textFormat: Text.PlainText
+              color: Color.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
           }
         }
       }
     }
 
-    // Minimal calendar rows so the editor is reachable. Task 12 replaces
-    // this with the grouped account manager.
-    Column {
-      visible: root.calendars.length > 0
+    Button {
       width: parent.width
-      spacing: Style.space(4)
+      text: "Add account"
+      bordered: true
+      focusable: true
+      leftAlign: true
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      enabled: !root.busy
+      opacity: enabled ? 1 : 0.55
+      onClicked: root.addAccountRequested()
+    }
 
-      Repeater {
-        model: root.calendars
+    Button {
+      width: parent.width
+      text: "New calendar"
+      bordered: true
+      focusable: true
+      leftAlign: true
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      enabled: !root.busy
+      opacity: enabled ? 1 : 0.55
+      onClicked: root.newCalendarRequested()
+    }
 
-        Item {
-          id: calendarRow
-          required property var modelData
-          width: parent.width
-          height: editButton.implicitHeight
-
-          Rectangle {
-            id: colorDot
-            width: Style.space(10)
-            height: Style.space(10)
-            radius: width / 2
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            color: String(calendarRow.modelData.color || "#888888")
-          }
-
-          Button {
-            id: editButton
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            text: "Edit"
-            bordered: true
-            focusable: true
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            enabled: !root.busy
-            opacity: enabled ? 1 : 0.55
-            onClicked: root.editCalendarRequested(calendarRow.modelData)
-          }
-
-          Text {
-            id: stateLabel
-            visible: calendarRow.modelData.is_default === true || calendarRow.modelData.hidden === true
-            anchors.right: editButton.left
-            anchors.rightMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            text: [calendarRow.modelData.is_default === true ? "default" : "", calendarRow.modelData.hidden === true ? "hidden" : ""].filter(function(part) { return part !== "" }).join(" · ")
-            color: Util.alpha(root.foreground, 0.52)
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-          }
-
-          Text {
-            anchors.left: colorDot.right
-            anchors.leftMargin: Style.space(8)
-            anchors.right: stateLabel.visible ? stateLabel.left : editButton.left
-            anchors.rightMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            text: String(calendarRow.modelData.name || "")
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.body
-            elide: Text.ElideRight
-          }
-        }
-      }
+    Button {
+      width: parent.width
+      text: "Import iCal"
+      bordered: true
+      focusable: true
+      leftAlign: true
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      enabled: !root.busy
+      opacity: enabled ? 1 : 0.55
+      onClicked: root.importIcalRequested()
     }
 
     MultiSelect {
@@ -220,6 +256,16 @@ Flickable {
       target: calendarSelect
       property: "values"
       value: root.includedCalendarIds || []
+    }
+
+    Text {
+      width: parent.width
+      text: "Included calendars only filter this bar. Hidden calendars are removed from Chroncal and the agenda entirely."
+      textFormat: Text.PlainText
+      color: Util.alpha(root.foreground, 0.56)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      wrapMode: Text.WordWrap
     }
 
     Button {

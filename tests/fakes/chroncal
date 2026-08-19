@@ -12,5 +12,6 @@ fi
 case "${1:-} ${2:-}" in
   "event list") cat "$fixtures/events.json" ;;
   "calendar list") cat "$fixtures/calendars.json" ;;
+  "account list") cat "$fixtures/accounts.json" ;;
   *) printf 'unexpected fake chroncal command: %s\n' "$*" >&2; exit 64 ;;
 esac

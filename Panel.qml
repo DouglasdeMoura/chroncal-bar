@@ -29,16 +29,26 @@ Panel {
   property string editorMode: ""
   readonly property bool showingEditor: editorMode !== ""
   readonly property bool showingDetails: selectedEvent !== null && !showingEditor
+  readonly property var accounts: hostWidget ? ((hostWidget.agendaData || {}).accounts || []) : []
   property string calendarEditorMode: ""
   property var calendarEditorTarget: null
   readonly property bool showingCalendarEditor: calendarEditorMode !== ""
   property bool showingAccountEditor: false
   property var accountDetailsTarget: null
   readonly property bool showingAccountDetails: accountDetailsTarget !== null
-  property bool showingSettings: false
-  property bool showingHelp: false
-  readonly property bool showingSubview: showingDetails || showingEditor || showingCalendarEditor
-    || showingAccountEditor || showingAccountDetails || showingSettings || showingHelp
+  property bool showingAccountCalendars: false
+  property var accountCalendarsAccount: null
+  property var discoveryRows: []
+  property bool discoveryBusy: false
+  property string discoveryError: ""
+  property string discoveryStdoutText: ""
+  property string discoveryStderrText: ""
+  property bool showingIcalImport: false
+   property bool showingSettings: false
+   property bool showingHelp: false
+   readonly property bool showingSubview: showingDetails || showingEditor || showingCalendarEditor
+    || showingAccountEditor || showingAccountDetails || showingAccountCalendars || showingIcalImport
+    || showingSettings || showingHelp
   property bool mutationBusy: false
   property string mutationKind: ""
   property string mutationError: ""
@@ -107,6 +117,15 @@ Panel {
     showingAccountEditor = false
     accountDetailsTarget = null
     pendingDeleteAccount = null
+    if (discoveryBusy) {
+      discoveryProc.running = false
+      discoveryBusy = false
+    }
+    showingAccountCalendars = false
+    accountCalendarsAccount = null
+    discoveryRows = []
+    discoveryError = ""
+    showingIcalImport = false
   }
 
   function toggle() {
@@ -187,7 +206,7 @@ Panel {
   }
 
   function moveSelection(step) {
-    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || showingAccountEditor || showingAccountDetails || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || showingAccountEditor || showingAccountDetails || showingAccountCalendars || showingIcalImport || visibleEvents.length === 0) return
     var current = selectedEventIndex()
     var next = current < 0 ? (step > 0 ? 0 : visibleEvents.length - 1) : Model.clampSelection(current + step, visibleEvents.length)
     selectedEventKey = Model.eventKey(visibleEvents[next])
@@ -195,14 +214,14 @@ Panel {
 
   function focusedEvent() {
     if (selectedEvent) return selectedEvent
-    if (showingSettings || showingHelp || showingEditor || showingCalendarEditor || showingAccountEditor || showingAccountDetails) return null
+    if (showingSettings || showingHelp || showingEditor || showingCalendarEditor || showingAccountEditor || showingAccountDetails || showingAccountCalendars || showingIcalImport) return null
     var current = selectedEventIndex()
     if (current < 0) return null
     return visibleEvents[current]
   }
 
   function moveSelectionByDay(direction) {
-    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || showingAccountEditor || showingAccountDetails || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || showingAccountEditor || showingAccountDetails || showingAccountCalendars || showingIcalImport || visibleEvents.length === 0) return
     var index = Model.adjacentDayFirstEventIndex(visibleEvents, selectedEventIndex(), direction)
     if (index >= 0) selectedEventKey = Model.eventKey(visibleEvents[index])
   }
@@ -214,6 +233,8 @@ Panel {
     pendingDeleteAccount = null
     if (showingCalendarEditor) Qt.callLater(function() { calendarEditor.forceActiveFocus() })
     else if (showingAccountEditor) Qt.callLater(function() { accountEditor.forceActiveFocus() })
+    else if (showingAccountCalendars) Qt.callLater(function() { accountCalendars.forceActiveFocus() })
+    else if (showingIcalImport) Qt.callLater(function() { icalImport.forceActiveFocus() })
     else if (showingAccountDetails) Qt.callLater(function() { accountDetails.forceActiveFocus() })
     else Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -221,6 +242,9 @@ Panel {
   function handleClose() {
     if (deleteConfirm.opened) {
       dismissCalendarDeleteConfirm()
+    } else if (showingAccountCalendars) {
+      if (mutationBusy) cancelSetupMutation()
+      else closeAccountCalendars()
     } else if (showingAccountEditor || showingAccountDetails) {
       // Esc/back during a sign-in or sync kills the process first; the
       // form stays open until onExited lands (finishMutation sees
@@ -230,6 +254,9 @@ Panel {
       else closeAccountDetails()
     } else if (showingCalendarEditor) {
       closeCalendarEditor()
+    } else if (showingIcalImport) {
+      if (mutationBusy) cancelSetupMutation()
+      else closeIcalImport()
     } else if (showingEditor) {
       cancelEditor()
     } else if (showingDetails || showingSettings || showingHelp) {
@@ -242,13 +269,13 @@ Panel {
   }
 
   function activateSelection() {
-    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || showingAccountEditor || showingAccountDetails || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || showingAccountEditor || showingAccountDetails || showingAccountCalendars || showingIcalImport || visibleEvents.length === 0) return
     var current = selectedEventIndex()
     showEvent(visibleEvents[current < 0 ? 0 : current])
   }
 
   function beginSearch() {
-    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || showingAccountEditor || showingAccountDetails || agendaData.status !== "ok") return
+    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || showingAccountEditor || showingAccountDetails || showingAccountCalendars || showingIcalImport || agendaData.status !== "ok") return
     searching = true
     Qt.callLater(function() { searchField.forceActiveFocus() })
   }
@@ -597,6 +624,121 @@ Panel {
     runMutation(args, "account-remove")
   }
 
+  function openAccountCalendars(account) {
+    if (mutationBusy || discoveryBusy || !account) return
+    selectedEvent = null
+    editorMode = ""
+    closeCalendarEditorState()
+    showingHelp = false
+    mutationError = ""
+    discoveryError = ""
+    discoveryRows = []
+    accountCalendarsAccount = account
+    showingAccountCalendars = true
+    if (!hostWidget || !hostWidget.chroncalExecScript) {
+      discoveryError = "Chroncal executable is unavailable"
+      return
+    }
+    discoveryBusy = true
+    discoveryStdoutText = ""
+    discoveryStderrText = ""
+    discoveryProc.command = [hostWidget.chroncalExecScript].concat(Model.accountCalendarsListArgs(account))
+    discoveryProc.running = true
+  }
+
+  function finishDiscoveryLoad(exitCode) {
+    discoveryBusy = false
+    if (!showingAccountCalendars || accountCalendarsAccount === null) return
+    if (exitCode !== 0) {
+      var failure = String(discoveryStderrText || discoveryStdoutText || "").trim()
+      discoveryError = failure !== "" ? failure : "Chroncal could not load the account calendars"
+      return
+    }
+    var parsed = null
+    try {
+      parsed = JSON.parse(String(discoveryStdoutText))
+    } catch (error) {
+      parsed = null
+    }
+    if (!parsed || typeof parsed !== "object") {
+      discoveryError = "Chroncal could not load the account calendars"
+      return
+    }
+    discoveryRows = parsed.calendars || []
+    if (parsed.account && typeof parsed.account === "object" && parsed.account.id !== undefined) {
+      var merged = {}
+      var current = accountCalendarsAccount
+      for (var key in current) merged[key] = current[key]
+      merged.id = parsed.account.id
+      merged.display_name = String(parsed.account.display_name || parsed.account.name || current.display_name || "Account")
+      merged.name = merged.display_name
+      merged.server_url = String(parsed.account.server_url || current.server_url || "")
+      merged.auth_type = String(parsed.account.auth_type || current.auth_type || "")
+      merged.username = String(parsed.account.username || current.username || "")
+      accountCalendarsAccount = merged
+    }
+  }
+
+  function closeAccountCalendars() {
+    if (discoveryBusy) {
+      discoveryProc.running = false  // Quickshell Process: SIGTERM
+      discoveryBusy = false
+    }
+    showingAccountCalendars = false
+    accountCalendarsAccount = null
+    discoveryRows = []
+    discoveryError = ""
+    Qt.callLater(function() { accountDetails.forceActiveFocus() })
+  }
+
+  function submitAccountCalendars(values) {
+    if (mutationBusy || discoveryBusy) return
+    var form = values || {}
+    var args = Model.accountCalendarsSetArgs({
+      id: (accountCalendarsAccount || {}).id,
+      paths: form.none === true ? [] : form.paths,
+      none: form.none === true,
+      defaultRef: form.defaultRef
+    })
+    if (args.length === 0) {
+      discoveryError = "Select the calendars to keep, or none to remove the account"
+      return
+    }
+    runMutation(args, "account-calendars-set")
+  }
+
+  function openIcalImport() {
+    if (mutationBusy) return
+    selectedEvent = null
+    editorMode = ""
+    closeCalendarEditorState()
+    closeAccountSetupState()
+    showingHelp = false
+    mutationError = ""
+    actionStatus = ""
+    showingIcalImport = true
+    showingSettings = true
+    Qt.callLater(function() { icalImport.initialize() })
+  }
+
+  function closeIcalImport() {
+    showingIcalImport = false
+    deleteConfirm.opened = false
+    mutationError = ""
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function submitIcalImport(values) {
+    if (mutationBusy) return
+    var form = values || {}
+    var args = Model.icalImportArgs({ path: form.path, calendar: form.calendar })
+    if (String(args[2] || "") === "") {
+      mutationError = "Path is required"
+      return
+    }
+    runMutation(args, "ical-import")
+  }
+
   function cancelSetupMutation() {
     if (!mutationBusy) return
     mutationCanceled = true
@@ -604,7 +746,9 @@ Panel {
   }
 
   function refocusSetupSurface() {
-    if (showingAccountEditor) Qt.callLater(function() { accountEditor.forceActiveFocus() })
+    if (showingAccountCalendars) Qt.callLater(function() { accountCalendars.forceActiveFocus() })
+    else if (showingIcalImport) Qt.callLater(function() { icalImport.forceActiveFocus() })
+    else if (showingAccountEditor) Qt.callLater(function() { accountEditor.forceActiveFocus() })
     else if (showingAccountDetails) Qt.callLater(function() { accountDetails.forceActiveFocus() })
     else if (showingCalendarEditor) Qt.callLater(function() { calendarEditor.forceActiveFocus() })
     else Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -710,8 +854,10 @@ Panel {
     if (kind === "account-update") return "Account renamed"
     if (kind === "account-credentials") return "Credentials updated"
     if (kind === "account-reauth") return "Signed in again"
-    if (kind === "account-remove") return "Account removed"
     if (kind === "sync-run") return "Account synced"
+    if (kind === "account-calendars-set") return "Calendars updated"
+    if (kind === "ical-import") return "Events imported"
+    if (kind === "account-remove") return "Account removed"
     return "Done"
   }
 
@@ -819,6 +965,39 @@ Panel {
       Qt.callLater(function() { keyCatcher.forceActiveFocus() })
       return
     }
+    if (completed === "account-calendars-set") {
+      if (exitCode !== 0) {
+        mutationError = String(mutationStderrText || mutationStdoutText || "Chroncal could not update the account calendars").trim()
+        actionStatus = mutationError
+        actionStatusTimer.restart()
+        if (showingAccountCalendars) Qt.callLater(function() { accountCalendars.forceActiveFocus() })
+        return
+      }
+      actionStatus = setupActionStatus(completed)
+      actionStatusTimer.restart()
+      var setParsed = parseMutationJson()
+      var accountRemoved = setParsed !== null && setParsed.account_removed === true
+      closeAccountCalendars()
+      if (accountRemoved) closeAccountDetails()
+      else Qt.callLater(function() { accountDetails.forceActiveFocus() })
+      refresh()
+      return
+    }
+    if (completed === "ical-import") {
+      if (exitCode !== 0) {
+        mutationError = String(mutationStderrText || mutationStdoutText || "Chroncal could not import the file").trim()
+        actionStatus = mutationError
+        actionStatusTimer.restart()
+        if (showingIcalImport) Qt.callLater(function() { icalImport.forceActiveFocus() })
+        return
+      }
+      actionStatus = setupActionStatus(completed)
+      actionStatusTimer.restart()
+      closeIcalImport()
+      refresh()
+      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      return
+    }
     if (exitCode !== 0) {
       mutationError = String(mutationStderrText || mutationStdoutText
         || (String(completed).indexOf("calendar-") === 0 ? "Chroncal could not save the calendar" : "Chroncal could not complete the action")).trim()
@@ -853,6 +1032,13 @@ Panel {
     closeCalendarEditor()
     refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  Process {
+    id: discoveryProc
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.discoveryStdoutText = text }
+    stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.discoveryStderrText = text }
+    onExited: function(exitCode) { Qt.callLater(function() { root.finishDiscoveryLoad(exitCode) }) }
   }
 
   function finishMutation(exitCode) {
@@ -971,7 +1157,7 @@ Panel {
       anchors.fill: parent
       blocked: (root.searching && searchField.activeFocus) || root.showingEditor
         || (root.showingCalendarEditor && !deleteConfirm.opened)
-        || ((root.showingAccountEditor || root.showingAccountDetails) && !deleteConfirm.opened)
+        || ((root.showingAccountEditor || root.showingAccountDetails || root.showingAccountCalendars || root.showingIcalImport) && !deleteConfirm.opened)
       onMoveRequested: function(dx, dy) {
         if (deleteConfirm.opened) {
           if (dx !== 0) deleteConfirm.cycle(dx)
@@ -1004,8 +1190,8 @@ Panel {
         else if (text === "/") root.beginSearch()
         else if (text === "," || text === "C") root.toggleSettings()
         else if (text === "c") root.startCreate()
-        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && (text === "t" || text === "T")) root.selectToday()
-        else if (!root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && (text === "e" || text === "E")) root.startEdit()
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingAccountCalendars && !root.showingIcalImport && (text === "t" || text === "T")) root.selectToday()
+        else if (!root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingAccountCalendars && !root.showingIcalImport && (text === "e" || text === "E")) root.startEdit()
         else if (root.showingDetails && (text === "v" || text === "V")) root.joinEvent()
         else if (root.showingDetails && (text === "p" || text === "P")) root.copyEventDetails()
         else if (root.showingDetails && (text === "g" || text === "G")) root.openChroncal()
@@ -1031,9 +1217,11 @@ Panel {
           Text {
             width: parent.width - headerActions.width
             anchors.verticalCenter: parent.verticalCenter
-            text: root.showingAccountEditor ? "NEW ACCOUNT"
+            text: root.showingAccountCalendars ? "MANAGE CALENDARS"
+              : (root.showingIcalImport ? "IMPORT ICAL"
+              : (root.showingAccountEditor ? "NEW ACCOUNT"
               : (root.showingAccountDetails ? "ACCOUNT"
-              : (root.showingCalendarEditor ? (root.calendarEditorMode === "edit" ? "EDIT CALENDAR" : "NEW CALENDAR") : (root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : (root.showingHelp ? "SHORTCUTS" : "UPCOMING"))))))
+              : (root.showingCalendarEditor ? (root.calendarEditorMode === "edit" ? "EDIT CALENDAR" : "NEW CALENDAR") : (root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : (root.showingHelp ? "SHORTCUTS" : "UPCOMING"))))))))
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -1049,7 +1237,7 @@ Panel {
             PanelActionButton {
               visible: root.showingSubview
               iconText: "←"
-              tooltipText: root.showingEditor || root.showingCalendarEditor || root.showingAccountEditor || root.showingAccountDetails
+              tooltipText: root.showingEditor || root.showingCalendarEditor || root.showingAccountEditor || root.showingAccountDetails || root.showingAccountCalendars || root.showingIcalImport
                 ? "Cancel and go back"
                 : "Back to agenda"
               foreground: root.contentForeground
@@ -1098,7 +1286,7 @@ Panel {
 
           TextField {
             id: searchField
-            visible: root.searching && !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingHelp && root.agendaData.status === "ok"
+            visible: root.searching && !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingAccountCalendars && !root.showingIcalImport && !root.showingHelp && root.agendaData.status === "ok"
             enabled: visible
             activeFocusOnPress: visible
             anchors.top: parent.top
@@ -1145,7 +1333,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingHelp && root.agendaData.status === "unavailable"
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingAccountCalendars && !root.showingIcalImport && !root.showingHelp && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
             width: parent.width - Style.space(24)
             text: "Chroncal is unavailable\nThe agenda will retry automatically."
@@ -1156,18 +1344,73 @@ Panel {
             wrapMode: Text.WordWrap
           }
 
-          Text {
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length === 0
+          Column {
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingAccountCalendars && !root.showingIcalImport && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length === 0
             anchors.centerIn: parent
-            text: root.searchQuery !== "" ? "No matching events" : "No upcoming events"
-            color: Util.alpha(root.contentForeground, 0.66)
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.body
+            width: parent.width - Style.space(24)
+            spacing: Style.space(10)
+
+            Text {
+              visible: root.calendars.length === 0 && root.searchQuery === ""
+              width: parent.width
+              horizontalAlignment: Text.AlignHCenter
+              text: "No calendars yet"
+              color: Util.alpha(root.contentForeground, 0.66)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.body
+            }
+
+            Text {
+              visible: root.calendars.length === 0 && root.searchQuery === ""
+              width: parent.width
+              horizontalAlignment: Text.AlignHCenter
+              wrapMode: Text.WordWrap
+              text: "Add a CalDAV account or create a local calendar to see events here."
+              color: Util.alpha(root.contentForeground, 0.56)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            Row {
+              visible: root.calendars.length === 0 && root.searchQuery === ""
+              anchors.horizontalCenter: parent.horizontalCenter
+              spacing: Style.space(8)
+
+              Button {
+                text: "Add account"
+                bordered: true
+                focusable: true
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                enabled: !root.mutationBusy
+                opacity: enabled ? 1 : 0.55
+                onClicked: root.openAccountCreate()
+              }
+
+              Button {
+                text: "New calendar"
+                bordered: true
+                focusable: true
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                enabled: !root.mutationBusy
+                opacity: enabled ? 1 : 0.55
+                onClicked: root.openCalendarCreate()
+              }
+            }
+
+            Text {
+              visible: root.calendars.length > 0 || root.searchQuery !== ""
+              text: root.searchQuery !== "" ? "No matching events" : "No upcoming events"
+              color: Util.alpha(root.contentForeground, 0.66)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.body
+            }
           }
 
           Flickable {
             id: agendaFlick
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length > 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingAccountEditor && !root.showingAccountDetails && !root.showingAccountCalendars && !root.showingIcalImport && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length > 0
             anchors.top: searchField.bottom
             anchors.topMargin: searchField.visible ? Style.space(10) : 0
             anchors.left: parent.left
@@ -1264,9 +1507,11 @@ Panel {
           CalendarSettings {
             visible: root.showingSettings && !root.showingCalendarEditor
               && !root.showingAccountEditor && !root.showingAccountDetails
+              && !root.showingAccountCalendars && !root.showingIcalImport
             anchors.fill: parent
             bar: root.bar
             calendars: root.calendars
+            accounts: root.accounts
             busy: root.mutationBusy
             includedCalendarIds: Model.selectedCalendarIds(root.calendars, root.settings)
             calendarSelectionCustomized: Model.calendarSelectionCustomized(root.settings)
@@ -1283,6 +1528,7 @@ Panel {
             onEditCalendarRequested: function(calendar) { root.openCalendarEdit(calendar) }
             onAddAccountRequested: root.openAccountCreate()
             onOpenAccountRequested: function(account) { root.openAccountDetails(account) }
+            onImportIcalRequested: root.openIcalImport()
           }
 
           CalendarEditor {
@@ -1327,8 +1573,46 @@ Panel {
             onCanceled: root.closeAccountDetails()
             onSubmitted: function(values) { root.submitAccountDetails(values) }
             onCancelRequested: root.cancelSetupMutation()
-            // Task 12 wires the grouped calendar manager.
-            onManageCalendarsRequested: function(account) {}
+            onManageCalendarsRequested: root.openAccountCalendars(root.accountDetailsTarget)
+          }
+
+          AccountCalendars {
+            id: accountCalendars
+            visible: root.showingAccountCalendars
+            enabled: !deleteConfirm.opened
+            anchors.fill: parent
+            bar: root.bar
+            account: root.accountCalendarsAccount
+            rows: root.discoveryRows
+            loading: root.discoveryBusy
+            busy: root.mutationBusy
+            externalError: root.discoveryError !== "" ? root.discoveryError : root.mutationError
+            defaultCalendarId: {
+              var target = String((root.accountCalendarsAccount || {}).id || "")
+              if (target === "") return ""
+              var list = root.calendars
+              for (var i = 0; i < list.length; i += 1) {
+                var calendar = list[i] || {}
+                if (calendar.is_default === true && String(calendar.account_id || "") === target)
+                  return String(calendar.id)
+              }
+              return ""
+            }
+            onCanceled: root.closeAccountCalendars()
+            onSubmitted: function(values) { root.submitAccountCalendars(values) }
+          }
+
+          IcalImport {
+            id: icalImport
+            visible: root.showingIcalImport
+            enabled: !deleteConfirm.opened
+            anchors.fill: parent
+            bar: root.bar
+            calendars: root.calendars
+            busy: root.mutationBusy
+            externalError: root.mutationError
+            onCanceled: root.closeIcalImport()
+            onSubmitted: function(values) { root.submitIcalImport(values) }
           }
 
           ShortcutHelp {
