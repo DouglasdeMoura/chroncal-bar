@@ -7,6 +7,7 @@ Item {
 
   property bool opened: false
   property bool recurring: false
+  property string actionLabel: ""
   property string title: "this event"
   property int selectedIndex: 0
   property color background: Color.background
@@ -21,7 +22,7 @@ Item {
         { key: "cancel", label: "Cancel", destructive: false }
       ]
     : [
-        { key: "event", label: "Delete", destructive: true },
+        { key: "event", label: root.actionLabel !== "" ? root.actionLabel : "Delete", destructive: true },
         { key: "cancel", label: "Cancel", destructive: false }
       ]
 

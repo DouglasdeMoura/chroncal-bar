@@ -13,6 +13,11 @@ Flickable {
   property var includedCalendarIds: []
   property bool calendarSelectionCustomized: false
   property bool busy: false
+  property var syncStatus: []
+  property var syncIssues: []
+  property bool syncStateBusy: false
+  property string statusText: ""
+  property string errorText: ""
   property string showTime: "On"
   property string showTitle: "On"
   property int relativeLeadMinutes: 10
@@ -28,6 +33,20 @@ Flickable {
   signal addAccountRequested()
   signal openAccountRequested(var account)
   signal importIcalRequested()
+  signal syncRequested(var account)
+  signal resolveRequested(var issue, string pick)
+  signal resetRequested(var calendarRow)
+
+  // Mirrors Model.groupCalendars' local test: 0/"0"/""/null/undefined are local.
+  readonly property bool hasConnectedCalendar: {
+    var list = root.calendars || []
+    for (var i = 0; i < list.length; i += 1) {
+      var rawId = (list[i] || {}).account_id
+      if (!(rawId === undefined || rawId === null || rawId === 0 || rawId === "0" || String(rawId) === ""))
+        return true
+    }
+    return false
+  }
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -65,12 +84,12 @@ Flickable {
 
         Item {
           width: parent.width
-          height: Math.max(sectionLabel.implicitHeight, sectionOpenButton.implicitHeight)
+          height: Math.max(sectionLabel.implicitHeight, sectionActions.implicitHeight)
 
           Text {
             id: sectionLabel
             anchors.left: parent.left
-            anchors.right: accountSection.modelData.account !== null ? sectionOpenButton.left : parent.right
+            anchors.right: accountSection.modelData.account !== null ? sectionActions.left : parent.right
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
             text: accountSection.modelData.account !== null
@@ -84,19 +103,34 @@ Flickable {
             elide: Text.ElideRight
           }
 
-          Button {
-            id: sectionOpenButton
+          Row {
+            id: sectionActions
             visible: accountSection.modelData.account !== null
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: "Open"
-            bordered: true
-            focusable: true
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            enabled: !root.busy
-            opacity: enabled ? 1 : 0.55
-            onClicked: root.openAccountRequested(accountSection.modelData.account)
+            spacing: Style.space(4)
+
+            Button {
+              text: "Sync"
+              bordered: true
+              focusable: true
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              enabled: !root.busy && !root.syncStateBusy
+              opacity: enabled ? 1 : 0.55
+              onClicked: root.syncRequested(accountSection.modelData.account)
+            }
+
+            Button {
+              text: "Open"
+              bordered: true
+              focusable: true
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              enabled: !root.busy
+              opacity: enabled ? 1 : 0.55
+              onClicked: root.openAccountRequested(accountSection.modelData.account)
+            }
           }
         }
 
@@ -233,6 +267,195 @@ Flickable {
       enabled: !root.busy
       opacity: enabled ? 1 : 0.55
       onClicked: root.importIcalRequested()
+    }
+
+    Column {
+      visible: root.hasConnectedCalendar || root.syncStateBusy
+      width: parent.width
+      spacing: Style.space(6)
+
+      Text {
+        width: parent.width
+        text: "SYNC"
+        color: Util.alpha(root.foreground, 0.52)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 1
+      }
+
+      Text {
+        visible: root.syncStateBusy && root.syncStatus.length === 0
+        width: parent.width
+        text: "Loading sync status…"
+        color: Util.alpha(root.foreground, 0.56)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Text {
+        visible: root.statusText !== ""
+        width: parent.width
+        text: root.statusText
+        textFormat: Text.PlainText
+        color: Util.alpha(root.foreground, 0.56)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
+      }
+
+      Text {
+        visible: root.errorText !== ""
+        width: parent.width
+        text: root.errorText
+        textFormat: Text.PlainText
+        color: Color.urgent
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
+      }
+
+      Repeater {
+        model: root.syncStatus
+
+        Column {
+          id: syncStatusRow
+          required property var modelData
+          width: parent.width
+          spacing: Style.space(4)
+
+          Item {
+            width: parent.width
+            height: Math.max(syncStatusText.implicitHeight, syncResetButton.implicitHeight)
+
+            Text {
+              id: syncStatusText
+              anchors.left: parent.left
+              anchors.right: syncResetButton.left
+              anchors.rightMargin: Style.space(8)
+              anchors.verticalCenter: parent.verticalCenter
+              text: [String(syncStatusRow.modelData.calendar_name || ""),
+                "Last sync " + (String(syncStatusRow.modelData.last_sync_at || "") !== "" ? String(syncStatusRow.modelData.last_sync_at) : "Never")]
+                .concat(syncStatusRow.modelData.pending_push === true ? ["pending push"] : [])
+                .join(" · ")
+              textFormat: Text.PlainText
+              color: Util.alpha(root.foreground, 0.56)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
+
+            Button {
+              id: syncResetButton
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              text: "Reset…"
+              bordered: true
+              focusable: true
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              enabled: !root.busy && !root.syncStateBusy
+              opacity: enabled ? 1 : 0.55
+              onClicked: root.resetRequested(syncStatusRow.modelData)
+            }
+          }
+
+          Text {
+            visible: Number(syncStatusRow.modelData.conflicts || 0) > 0
+            width: parent.width
+            text: Number(syncStatusRow.modelData.conflicts || 0) === 1
+              ? "1 conflict"
+              : Number(syncStatusRow.modelData.conflicts || 0) + " conflicts"
+            textFormat: Text.PlainText
+            color: Color.urgent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+        }
+      }
+
+      Column {
+        visible: root.syncIssues.length > 0
+        width: parent.width
+        spacing: Style.space(6)
+
+        Text {
+          width: parent.width
+          text: "Unresolved conflicts"
+          color: Color.urgent
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          font.letterSpacing: 1
+        }
+
+        Repeater {
+          model: root.syncIssues
+
+          Item {
+            id: conflictRow
+            required property var modelData
+            width: parent.width
+            height: Math.max(conflictText.implicitHeight, conflictButtons.implicitHeight)
+
+            readonly property string calendarLabel: {
+              var target = String(conflictRow.modelData.calendar_id)
+              var list = root.calendars || []
+              for (var i = 0; i < list.length; i += 1) {
+                if (String((list[i] || {}).id) === target)
+                  return String(list[i].name || target)
+              }
+              return "Calendar " + target
+            }
+
+            Text {
+              id: conflictText
+              anchors.left: parent.left
+              anchors.right: conflictButtons.left
+              anchors.rightMargin: Style.space(8)
+              anchors.verticalCenter: parent.verticalCenter
+              text: [conflictRow.calendarLabel,
+                String(conflictRow.modelData.uid || ""),
+                String(conflictRow.modelData.detected_at || "")]
+                .filter(function(part) { return part !== "" }).join(" · ")
+              textFormat: Text.PlainText
+              color: Util.alpha(root.foreground, 0.56)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
+
+            Row {
+              id: conflictButtons
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(4)
+
+              Button {
+                text: "Keep local"
+                bordered: true
+                focusable: true
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                enabled: !root.busy
+                opacity: enabled ? 1 : 0.55
+                onClicked: root.resolveRequested(conflictRow.modelData, "local")
+              }
+
+              Button {
+                text: "Keep server"
+                bordered: true
+                focusable: true
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                enabled: !root.busy
+                opacity: enabled ? 1 : 0.55
+                onClicked: root.resolveRequested(conflictRow.modelData, "server")
+              }
+            }
+          }
+        }
+      }
     }
 
     MultiSelect {
