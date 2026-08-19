@@ -1307,6 +1307,75 @@ function accountGetArgs(form) {
  function accountRemoveArgs(account) {
    return ["account", "remove", String((account || {}).id || ""), "--yes", "--output", "json"];
  }
+function mutationProcessEnv(env) {
+  // Quickshell merges environment over the parent. String values add a
+  // variable; null removes one. Always null the secret keys so a later
+  // event or reauth child cannot inherit a leftover password.
+  var overlay = {
+    CHRONCAL_PASSWORD: null,
+    CHRONCAL_BEARER_TOKEN: null,
+    GOOGLE_CLIENT_SECRET: null
+  };
+  if (!env || typeof env !== "object") return overlay;
+  for (var key in env) overlay[key] = env[key];
+  return overlay;
+}
+
+function remainingDefaultCalendars(calendars, accountId) {
+  // Calendars that survive emptying this account: locals and other accounts.
+  var target = String(accountId || "");
+  var out = [];
+  var list = calendars || [];
+  for (var i = 0; i < list.length; i += 1) {
+    var calendar = list[i] || {};
+    var rawId = calendar.account_id;
+    if (target !== "" && String(rawId) === target) continue;
+    var id = String(calendar.id || "");
+    if (id === "") continue;
+    out.push({ value: id, label: String(calendar.name || "Calendar") });
+  }
+  return out;
+}
+
+function accountCalendarsDefaultNeedsPick(defaultRow, checkedPaths) {
+  if (defaultRow === null || defaultRow === undefined) return false;
+  return (checkedPaths || []).indexOf(String(defaultRow.path || "")) === -1;
+}
+
+function accountCalendarsDefaultOptions(rows, checkedPaths, remainingCalendars) {
+  var options = [];
+  var seen = {};
+  var paths = checkedPaths || [];
+  var list = rows || [];
+  for (var i = 0; i < list.length; i += 1) {
+    var row = list[i] || {};
+    if (row.importable !== true || row.missing === true) continue;
+    var path = String(row.path || "");
+    if (path === "" || paths.indexOf(path) === -1 || seen[path]) continue;
+    seen[path] = true;
+    options.push({ value: path, label: String(row.name || "Calendar") });
+  }
+  var remaining = remainingCalendars || [];
+  for (var j = 0; j < remaining.length; j += 1) {
+    var extra = remaining[j] || {};
+    var value = String(extra.value || extra.id || "");
+    if (value === "" || seen[value]) continue;
+    seen[value] = true;
+    options.push({ value: value, label: String(extra.label || extra.name || "Calendar") });
+  }
+  return options;
+}
+
+function accountCalendarsDefaultSelected(options, defaultValue) {
+  var target = String(defaultValue || "");
+  if (target === "") return false;
+  var list = options || [];
+  for (var i = 0; i < list.length; i += 1) {
+    if (String((list[i] || {}).value) === target) return true;
+  }
+  return false;
+}
+
 function accountCalendarsSetArgs(options) {
   var values = options || {};
   var paths = [];

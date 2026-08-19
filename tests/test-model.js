@@ -858,3 +858,62 @@ assert.deepEqual(model.syncResetArgs({ id: 11 }), ["sync", "reset", "--calendar"
 assert.deepEqual(model.syncResetArgs({ id: "Work" }), ["sync", "reset", "--calendar", "Work", "--output", "json"]);
 assert.deepEqual(model.syncResetArgs({}), []);
 assert.deepEqual(model.syncResetArgs(null), []);
+
+assert.deepEqual(model.mutationProcessEnv(null), {
+  CHRONCAL_PASSWORD: null,
+  CHRONCAL_BEARER_TOKEN: null,
+  GOOGLE_CLIENT_SECRET: null
+});
+assert.deepEqual(model.mutationProcessEnv({ CHRONCAL_PASSWORD: "secret" }), {
+  CHRONCAL_PASSWORD: "secret",
+  CHRONCAL_BEARER_TOKEN: null,
+  GOOGLE_CLIENT_SECRET: null
+});
+assert.deepEqual(model.mutationProcessEnv({
+  CHRONCAL_PASSWORD: "old",
+  CHRONCAL_BEARER_TOKEN: "tok",
+  GOOGLE_CLIENT_SECRET: "goc"
+}).CHRONCAL_PASSWORD, "old");
+
+const remainingCals = [
+  { id: 11, name: "Work", account_id: 3, is_default: true },
+  { id: 14, name: "Local", account_id: 0 },
+  { id: 13, name: "G", account_id: 7 },
+  { id: 15, name: "Zero string", account_id: "0" }
+];
+assert.deepEqual(model.remainingDefaultCalendars(remainingCals, 3), [
+  { value: "14", label: "Local" },
+  { value: "13", label: "G" },
+  { value: "15", label: "Zero string" }
+]);
+assert.deepEqual(model.remainingDefaultCalendars(remainingCals, "7"), [
+  { value: "11", label: "Work" },
+  { value: "14", label: "Local" },
+  { value: "15", label: "Zero string" }
+]);
+assert.deepEqual(model.remainingDefaultCalendars([], 3), []);
+
+const importedDefault = { path: "/cal/work/", calendar_id: 11, imported: true, name: "Work" };
+assert.equal(model.accountCalendarsDefaultNeedsPick(importedDefault, ["/cal/work/"]), false);
+assert.equal(model.accountCalendarsDefaultNeedsPick(importedDefault, ["/cal/home/"]), true);
+assert.equal(model.accountCalendarsDefaultNeedsPick(importedDefault, []), true);
+assert.equal(model.accountCalendarsDefaultNeedsPick(null, []), false);
+assert.equal(model.accountCalendarsDefaultNeedsPick(undefined, ["/cal/work/"]), false);
+
+const discoveryRows = [
+  { path: "/cal/work/", name: "Work", importable: true, imported: true, missing: false },
+  { path: "/cal/home/", name: "Home", importable: true, imported: true, missing: false },
+  { path: "/cal/skip/", name: "Skip", importable: false, imported: false }
+];
+assert.deepEqual(
+  model.accountCalendarsDefaultOptions(discoveryRows, ["/cal/home/"], [{ value: "14", label: "Local" }]),
+  [{ value: "/cal/home/", label: "Home" }, { value: "14", label: "Local" }]
+);
+assert.deepEqual(
+  model.accountCalendarsDefaultOptions(discoveryRows, [], [{ value: "14", label: "Local" }]),
+  [{ value: "14", label: "Local" }]
+);
+assert.deepEqual(model.accountCalendarsDefaultOptions(discoveryRows, [], []), []);
+assert.equal(model.accountCalendarsDefaultSelected([{ value: "14", label: "Local" }], "14"), true);
+assert.equal(model.accountCalendarsDefaultSelected([{ value: "14", label: "Local" }], "/cal/work/"), false);
+assert.equal(model.accountCalendarsDefaultSelected([], "14"), false);

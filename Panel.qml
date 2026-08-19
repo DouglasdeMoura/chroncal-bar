@@ -83,6 +83,7 @@ Panel {
   property var pendingDeleteAccount: null
   property string pendingDefaultName: ""
   property bool mutationCanceled: false
+  property bool mutationTimedOut: false
   property string lastAccountAddAuth: "basic"
   property bool rsvpRefreshPending: false
   property string rsvpExpectedStatus: ""
@@ -113,6 +114,7 @@ Panel {
   }
 
   function close() {
+    if (mutationBusy) cancelSetupMutation()
     root.rsvpRefreshPending = false
     root.rsvpExpectedStatus = ""
     root.selectedEvent = null
@@ -284,14 +286,16 @@ Panel {
       else if (showingAccountEditor) closeAccountEditor()
       else closeAccountDetails()
     } else if (showingCalendarEditor) {
-      closeCalendarEditor()
+      if (mutationBusy) cancelSetupMutation()
+      else closeCalendarEditor()
     } else if (showingIcalImport) {
       if (mutationBusy) cancelSetupMutation()
       else closeIcalImport()
     } else if (showingEditor) {
       cancelEditor()
     } else if (showingDetails || showingSettings || showingHelp) {
-      backToAgenda()
+      if (showingSettings && mutationBusy) cancelSetupMutation()
+      else backToAgenda()
     } else if (searching) {
       endSearch()
     } else {
@@ -782,7 +786,14 @@ Panel {
   function cancelSetupMutation() {
     if (!mutationBusy) return
     mutationCanceled = true
+    mutationTimeoutTimer.stop()
     mutationProc.running = false  // Quickshell Process: SIGTERM
+  }
+
+  function expireSetupMutation() {
+    if (!mutationBusy || mutationCanceled) return
+    mutationTimedOut = true
+    mutationProc.running = false
   }
 
   function refocusSetupSurface() {
@@ -846,14 +857,14 @@ Panel {
     mutationError = ""
     mutationStdoutText = ""
     mutationStderrText = ""
-    // Quickshell.Io.Process exposes `environment` (a JS object merged over the
-    // parent environment; string values add a variable, null removes one).
-    // Secrets must travel here only, never in argv. A missing env resets any
-    // leftover variable from a previous account mutation.
-    if (env && typeof env === "object") mutationProc.environment = env
-    else mutationProc.environment = ({})
+    mutationTimedOut = false
+    mutationCanceled = false
+    // Secrets travel here only, never in argv. mutationProcessEnv always
+    // nulls leftover secret keys so a later child cannot inherit them.
+    mutationProc.environment = Model.mutationProcessEnv(env)
     mutationProc.command = [hostWidget.chroncalExecScript].concat(args)
     mutationProc.running = true
+    mutationTimeoutTimer.restart()
   }
 
   function hydrateSelectedEvent() {
@@ -1241,14 +1252,25 @@ Panel {
 
   function finishMutation(exitCode) {
     var completed = mutationKind
+    mutationTimeoutTimer.stop()
     mutationBusy = false
     if (mutationCanceled) {
       // Esc killed an in-flight sign-in/sync (SIGTERM). Not a failure:
       // keep whatever form is open and stay quiet.
       mutationCanceled = false
+      mutationTimedOut = false
       mutationKind = ""
       mutationError = ""
       actionStatus = "Canceled"
+      actionStatusTimer.restart()
+      refocusSetupSurface()
+      return
+    }
+    if (mutationTimedOut) {
+      mutationTimedOut = false
+      mutationKind = ""
+      mutationError = "Chroncal timed out after 5 minutes"
+      actionStatus = mutationError
       actionStatusTimer.restart()
       refocusSetupSurface()
       return
@@ -1324,6 +1346,13 @@ Panel {
     id: actionStatusTimer
     interval: 2000
     onTriggered: root.actionStatus = ""
+  }
+
+  Timer {
+    id: mutationTimeoutTimer
+    interval: 5 * 60 * 1000
+    repeat: false
+    onTriggered: root.expireSetupMutation()
   }
 
   Process {
@@ -1809,6 +1838,8 @@ Panel {
               }
               return ""
             }
+            remainingCalendars: Model.remainingDefaultCalendars(
+              root.calendars, (root.accountCalendarsAccount || {}).id)
             onCanceled: root.closeAccountCalendars()
             onSubmitted: function(values) { root.submitAccountCalendars(values) }
           }
