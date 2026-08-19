@@ -55,6 +55,7 @@ Panel {
   property string syncIssuesStdoutText: ""
   property string syncIssuesStderrText: ""
   property var pendingSyncResetCalendar: null
+  property bool syncFetchQueued: false
   property bool showingIcalImport: false
   property bool showingSettings: false
   property bool showingHelp: false
@@ -1098,9 +1099,26 @@ Panel {
     onExited: function(exitCode) { Qt.callLater(function() { root.finishDiscoveryLoad(exitCode) }) }
   }
 
+
+  function maybeRunQueuedSyncFetch() {
+    if (syncStatusBusy || syncIssuesBusy) return
+    if (!syncFetchQueued) return
+    if (!root.opened || !showingSettings) {
+      syncFetchQueued = false
+      return
+    }
+    fetchSyncState()
+  }
+
   function fetchSyncState() {
     if (!hostWidget || !hostWidget.chroncalExecScript) return
-    if (syncStatusBusy || syncIssuesBusy) return
+    if (syncStatusBusy || syncIssuesBusy) {
+      // A resolve/sync can finish while the previous status read is still
+      // in flight; run again as soon as that read exits.
+      syncFetchQueued = true
+      return
+    }
+    syncFetchQueued = false
     syncStatusBusy = true
     syncIssuesBusy = true
     syncStatusStdoutText = ""
@@ -1115,10 +1133,14 @@ Panel {
 
   function finishSyncStatusLoad(exitCode) {
     syncStatusBusy = false
-    if (!root.opened || !showingSettings) return
+    if (!root.opened || !showingSettings) {
+      syncFetchQueued = false
+      return
+    }
     if (exitCode !== 0) {
       var statusFailure = String(syncStatusStderrText || syncStatusStdoutText || "").trim()
       syncStateError = statusFailure !== "" ? statusFailure : "Sync status unavailable"
+      maybeRunQueuedSyncFetch()
       return
     }
     var statusParsed = null
@@ -1127,17 +1149,25 @@ Panel {
     } catch (error) {
       statusParsed = null
     }
-    if (!Array.isArray(statusParsed)) return
+    if (!Array.isArray(statusParsed)) {
+      maybeRunQueuedSyncFetch()
+      return
+    }
     syncStatusRows = statusParsed
     syncStateError = ""
+    maybeRunQueuedSyncFetch()
   }
 
   function finishSyncIssuesLoad(exitCode) {
     syncIssuesBusy = false
-    if (!root.opened || !showingSettings) return
+    if (!root.opened || !showingSettings) {
+      syncFetchQueued = false
+      return
+    }
     if (exitCode !== 0) {
       var issuesFailure = String(syncIssuesStderrText || syncIssuesStdoutText || "").trim()
       syncStateError = issuesFailure !== "" ? issuesFailure : "Sync status unavailable"
+      maybeRunQueuedSyncFetch()
       return
     }
     var issuesParsed = null
@@ -1146,8 +1176,12 @@ Panel {
     } catch (error) {
       issuesParsed = null
     }
-    if (!Array.isArray(issuesParsed)) return
+    if (!Array.isArray(issuesParsed)) {
+      maybeRunQueuedSyncFetch()
+      return
+    }
     syncIssueRows = issuesParsed
+    maybeRunQueuedSyncFetch()
   }
 
   function requestSyncReset(row) {
