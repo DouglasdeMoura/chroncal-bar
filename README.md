@@ -42,7 +42,7 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Manages calendars from the Settings CALENDARS list: create, edit, hide, default, owner email, per-account grouping, and discovery of remote collections.
 - Adds CalDAV accounts (password, bearer token, Google OAuth) and imports iCal files without leaving the bar.
 - Syncs an account, resets one calendar's sync state, and resolves conflicts with Keep local or Keep server.
-- Included calendars only filter the bar; hidden calendars are removed from Chroncal and the agenda entirely.
+- Included calendars only filter the bar. Hide is a Chroncal UI flag: hidden calendars keep their events but leave the agenda; Settings still lists them so they can be shown again.
 - Passes account secrets as process environment for that one Chroncal command; they never appear in argv, logs, or `shell.json`.
 
 This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sensitive time changes, alarms, availability, and the Chroncal service remain in Chroncal.
@@ -51,7 +51,7 @@ This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sen
 
 - Omarchy Quattro
 - Chroncal 0.7.4 or newer on `PATH`
-- Chroncal with account setup CLI (local master until tagged) for in-plugin accounts, hide, credentials, reauth, and `sync run --account`
+- Chroncal with account setup CLI (`feat/account-setup-cli` until merged and tagged) for in-plugin accounts, hide, credentials, reauth, and `sync run --account`
 - A Chroncal build that includes `chroncal event rsvp` for Yes/No/Maybe replies (not in 0.7.4)
 - A Chroncal build that includes `chroncal --event` to open the TUI on the selected event
 - `bash`, `jq`, GNU `date`, and GNU `timeout`
@@ -65,7 +65,7 @@ Install Chroncal with mise if needed:
 mise use -g github:DouglasdeMoura/chroncal@0.7.4
 ```
 
-That pin is enough for the rest of the bar. Yes/No/Maybe needs a Chroncal newer than 0.7.4, or a local build of `feat/event-rsvp-cli`. In-plugin account and calendar setup needs Chroncal with account setup CLI (local master until tagged).
+That pin is enough for the rest of the bar. Yes/No/Maybe needs a Chroncal newer than 0.7.4, or a local build of `feat/event-rsvp-cli`. In-plugin account and calendar setup needs Chroncal with account setup CLI (`feat/account-setup-cli` until merged and tagged).
 
 Add accounts and calendars from Settings, or from Add account and New calendar on an empty agenda. The Chroncal TUI remains available:
 
@@ -111,6 +111,7 @@ Search opens with `/`. Subviews share one header back arrow. Settings, shortcut 
 Open the agenda and press `C` or `,`, or click the settings cog in the header. Available settings:
 
 - CALENDARS manager: accounts grouped with nested calendars; Add account, New calendar, and Import iCal; Sync on each account; Hide, default, and owner email on a calendar; inspect, rename, credentials, reauth, and remove an account.
+- SYNC: last-sync time, pending push, Reset…, and Keep local / Keep server when a calendar has conflicts.
 - Days ahead (1–30) and refresh interval.
 - Maximum bar-title length and the relative-countdown window.
 - Included calendars; all are selected automatically until you customize the selection.
@@ -120,7 +121,7 @@ Open the agenda and press `C` or `,`, or click the settings cog in the header. A
 - Include or exclude events without a physical location or meeting link.
 - Show or hide the Open in Chroncal button on event details (off by default).
 
-Hide is a Chroncal calendar flag: hidden calendars leave Chroncal and the agenda. Included calendars are a bar-only filter. Calendar selection has two states. Default mode selects every current calendar and automatically includes calendars added later. The first checkbox change stores an exact custom selection; selecting none hides every event. Use **Use default (all calendars)** to discard the custom selection and return to automatic default mode.
+Hide is a Chroncal calendar flag: hidden calendars keep their events but leave the agenda. Included calendars are a bar-only filter. Calendar selection has two states. Default mode selects every current calendar and automatically includes calendars added later. The first checkbox change stores an exact custom selection; selecting none hides every event. Use **Use default (all calendars)** to discard the custom selection and return to automatic default mode.
 
 Widget settings persist on the widget entry in `~/.config/omarchy/shell.json`. They can also be changed from the command line:
 
