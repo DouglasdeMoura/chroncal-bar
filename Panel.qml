@@ -1561,7 +1561,7 @@ Panel {
 
           AccountDetails {
             id: accountDetails
-            visible: root.showingAccountDetails
+            visible: root.showingAccountDetails && !root.showingAccountCalendars
             enabled: !deleteConfirm.opened
             anchors.fill: parent
             bar: root.bar
