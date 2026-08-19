@@ -1148,6 +1148,39 @@ function validateAccountForm(form) {
   return errors;
 }
 
+function accountsFromCalendars(calendars) {
+  // Until the agenda adapter ships an `accounts[]` document, unique
+  // accounts are derived from the calendar list. Local calendars carry
+  // no usable account id (0, "0", null, or empty).
+  var order = [];
+  var byId = {};
+  var list = calendars || [];
+  for (var i = 0; i < list.length; i += 1) {
+    var calendar = list[i] || {};
+    var rawId = calendar.account_id;
+    if (rawId === undefined || rawId === null || rawId === 0 || rawId === "0" || String(rawId) === "") continue;
+    var key = String(rawId);
+    var account = byId[key];
+    if (!account) {
+      var label = String(calendar.account_name || "") || "Account";
+      account = {
+        id: rawId,
+        display_name: label,
+        name: label,
+        server_url: String(calendar.remote_url || ""),
+        username: "",
+        auth_type: "",
+        calendar_count: 1
+      };
+      byId[key] = account;
+      order.push(account);
+    } else {
+      account.calendar_count += 1;
+    }
+  }
+  return order;
+}
+
 function calendarCreateArgs(form) {
   var values = form || {};
   var args = ["calendar", "create"];
@@ -1197,9 +1230,33 @@ function calendarDeleteArgs(calendar) {
   return args;
 }
 
-function accountRemoveArgs(account) {
-  return ["account", "remove", String((account || {}).id || ""), "--yes", "--output", "json"];
+function accountUpdateArgs(form) {
+  var values = form || {};
+  var args = ["account", "update", String(values.id || "")];
+  pushOptionalFlag(args, "--name", values.name);
+  args.push("--output", "json");
+  return args;
 }
+
+function accountCredentialsArgs(form) {
+  return ["account", "credentials", String((form || {}).id || ""), "--output", "json"];
+}
+
+function accountReauthArgs(form) {
+  var values = form || {};
+  var args = ["account", "reauth", String(values.id || "")];
+  pushOptionalFlag(args, "--oauth-client-id", values.clientId);
+  args.push("--output", "json");
+  return args;
+}
+
+function accountGetArgs(form) {
+  return ["account", "get", String((form || {}).id || ""), "--output", "json"];
+}
+
+ function accountRemoveArgs(account) {
+   return ["account", "remove", String((account || {}).id || ""), "--yes", "--output", "json"];
+ }
 function accountCalendarsSetArgs(options) {
   var values = options || {};
   var paths = [];

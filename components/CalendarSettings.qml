@@ -24,9 +24,12 @@ Flickable {
   signal configurationChanged(var values)
   signal newCalendarRequested()
   signal editCalendarRequested(var calendar)
+  signal addAccountRequested()
+  signal openAccountRequested(var account)
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property var accounts: Model.accountsFromCalendars(root.calendars)
 
   contentWidth: width
   contentHeight: settingsColumn.implicitHeight
@@ -50,17 +53,81 @@ Flickable {
       font.letterSpacing: 1
     }
 
-    Button {
+    Row {
       width: parent.width
-      text: "New calendar"
-      bordered: true
-      focusable: true
-      leftAlign: true
-      foreground: root.foreground
-      fontFamily: root.fontFamily
-      enabled: !root.busy
-      opacity: enabled ? 1 : 0.55
-      onClicked: root.newCalendarRequested()
+      spacing: Style.space(8)
+
+      Button {
+        width: (parent.width - parent.spacing) / 2
+        text: "Add account"
+        bordered: true
+        focusable: true
+        leftAlign: true
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        enabled: !root.busy
+        opacity: enabled ? 1 : 0.55
+        onClicked: root.addAccountRequested()
+      }
+
+      Button {
+        width: (parent.width - parent.spacing) / 2
+        text: "New calendar"
+        bordered: true
+        focusable: true
+        leftAlign: true
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        enabled: !root.busy
+        opacity: enabled ? 1 : 0.55
+        onClicked: root.newCalendarRequested()
+      }
+    }
+
+    // Minimal account rows so the inspector is reachable. Task 12
+    // replaces this with the grouped account manager.
+    Column {
+      visible: root.accounts.length > 0
+      width: parent.width
+      spacing: Style.space(4)
+
+      Repeater {
+        model: root.accounts
+
+        Item {
+          id: accountRow
+          required property var modelData
+          width: parent.width
+          height: openAccountButton.implicitHeight
+
+          Text {
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.right: openAccountButton.left
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: String(accountRow.modelData.display_name || "Account")
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            elide: Text.ElideRight
+          }
+
+          Button {
+            id: openAccountButton
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Open"
+            bordered: true
+            focusable: true
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            enabled: !root.busy
+            opacity: enabled ? 1 : 0.55
+            onClicked: root.openAccountRequested(accountRow.modelData)
+          }
+        }
+      }
     }
 
     // Minimal calendar rows so the editor is reachable. Task 12 replaces

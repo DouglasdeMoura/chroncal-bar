@@ -32,9 +32,13 @@ Panel {
   property string calendarEditorMode: ""
   property var calendarEditorTarget: null
   readonly property bool showingCalendarEditor: calendarEditorMode !== ""
+  property bool showingAccountEditor: false
+  property var accountDetailsTarget: null
+  readonly property bool showingAccountDetails: accountDetailsTarget !== null
   property bool showingSettings: false
   property bool showingHelp: false
-  readonly property bool showingSubview: showingDetails || showingEditor || showingCalendarEditor || showingSettings || showingHelp
+  readonly property bool showingSubview: showingDetails || showingEditor || showingCalendarEditor
+    || showingAccountEditor || showingAccountDetails || showingSettings || showingHelp
   property bool mutationBusy: false
   property string mutationKind: ""
   property string mutationError: ""
@@ -48,15 +52,26 @@ Panel {
   property string editLoadEventKey: ""
   property var editLoadSourceEvent: null
   property string editLoadStdoutText: ""
-  property string editLoadStderrText: ""
   property var pendingDeleteEvent: null
   property var pendingDeleteCalendarValues: null
+  property var pendingDeleteAccount: null
   property string pendingDefaultName: ""
+  property bool mutationCanceled: false
+  property string lastAccountAddAuth: "basic"
   property bool rsvpRefreshPending: false
   property string rsvpExpectedStatus: ""
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property string accountBusyLabel: {
+    if (mutationKind === "account-add")
+      return lastAccountAddAuth === "oauth2" ? "Waiting for Google authorization…" : "Signing in…"
+    if (mutationKind === "account-credentials") return "Updating credentials…"
+    if (mutationKind === "account-reauth") return "Waiting for Google authorization…"
+    if (mutationKind === "sync-run") return "Syncing…"
+    if (mutationKind === "account-get") return "Loading…"
+    return "Signing in…"
+  }
 
   function open() {
     if (hostWidget && hostWidget.refresh) hostWidget.refresh()
@@ -71,6 +86,7 @@ Panel {
     root.resetSearch()
     root.editorMode = ""
     root.closeCalendarEditorState()
+    root.closeAccountSetupState()
     root.showingSettings = false
     root.showingHelp = false
     root.resetEditState()
@@ -83,6 +99,12 @@ Panel {
     calendarEditorMode = ""
     calendarEditorTarget = null
     pendingDeleteCalendarValues = null
+  }
+
+  function closeAccountSetupState() {
+    showingAccountEditor = false
+    accountDetailsTarget = null
+    pendingDeleteAccount = null
   }
 
   function toggle() {
@@ -101,6 +123,7 @@ Panel {
     selectedEvent = eventData
     editorMode = ""
     closeCalendarEditorState()
+    closeAccountSetupState()
     showingSettings = false
     showingHelp = false
     actionStatus = ""
@@ -114,6 +137,7 @@ Panel {
     selectedEvent = null
     editorMode = ""
     closeCalendarEditorState()
+    closeAccountSetupState()
     showingSettings = false
     showingHelp = false
     actionStatus = ""
@@ -125,6 +149,7 @@ Panel {
     selectedEvent = null
     editorMode = ""
     closeCalendarEditorState()
+    closeAccountSetupState()
     showingHelp = false
     showingSettings = showingSettings ? false : true
     resetEditState()
@@ -184,13 +209,23 @@ Panel {
     deleteConfirm.opened = false
     pendingDeleteEvent = null
     pendingDeleteCalendarValues = null
+    pendingDeleteAccount = null
     if (showingCalendarEditor) Qt.callLater(function() { calendarEditor.forceActiveFocus() })
+    else if (showingAccountEditor) Qt.callLater(function() { accountEditor.forceActiveFocus() })
+    else if (showingAccountDetails) Qt.callLater(function() { accountDetails.forceActiveFocus() })
     else Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function handleClose() {
     if (deleteConfirm.opened) {
       dismissCalendarDeleteConfirm()
+    } else if (showingAccountEditor || showingAccountDetails) {
+      // Esc/back during a sign-in or sync kills the process first; the
+      // form stays open until onExited lands (finishMutation sees
+      // mutationCanceled and keeps everything quiet).
+      if (mutationBusy) cancelSetupMutation()
+      else if (showingAccountEditor) closeAccountEditor()
+      else closeAccountDetails()
     } else if (showingCalendarEditor) {
       closeCalendarEditor()
     } else if (showingEditor) {
@@ -248,6 +283,7 @@ Panel {
     selectedEvent = null
     editorMode = ""
     closeCalendarEditorState()
+    closeAccountSetupState()
     showingSettings = false
     showingHelp = showingHelp ? false : true
     resetEditState()
@@ -263,6 +299,7 @@ Panel {
   function startCreate() {
     selectedEvent = null
     closeCalendarEditorState()
+    closeAccountSetupState()
     showingSettings = false
     showingHelp = false
     mutationError = ""
@@ -352,6 +389,7 @@ Panel {
     if (mutationBusy) return
     selectedEvent = null
     editorMode = ""
+    closeAccountSetupState()
     showingHelp = false
     mutationError = ""
     calendarEditorTarget = null
@@ -364,6 +402,7 @@ Panel {
     if (mutationBusy || !calendar) return
     selectedEvent = null
     editorMode = ""
+    closeAccountSetupState()
     showingHelp = false
     mutationError = ""
     actionStatus = ""
@@ -444,6 +483,129 @@ Panel {
     var args = Model.calendarDeleteArgs({ id: target.id, promote: values.promote })
     if (String(args[2] || "") === "") return
     runMutation(args, "calendar-delete")
+  }
+
+  function openAccountCreate() {
+    if (mutationBusy) return
+    selectedEvent = null
+    editorMode = ""
+    closeCalendarEditorState()
+    closeAccountSetupState()
+    showingHelp = false
+    mutationError = ""
+    actionStatus = ""
+    showingAccountEditor = true
+    showingSettings = true
+    Qt.callLater(function() { accountEditor.initialize() })
+  }
+
+  function closeAccountEditor() {
+    showingAccountEditor = false
+    deleteConfirm.opened = false
+    mutationError = ""
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function openAccountDetails(account) {
+    if (mutationBusy || !account) return
+    selectedEvent = null
+    editorMode = ""
+    closeCalendarEditorState()
+    closeAccountSetupState()
+    showingHelp = false
+    mutationError = ""
+    actionStatus = ""
+    accountDetailsTarget = account
+    showingSettings = true
+    Qt.callLater(function() { accountDetails.initialize() })
+    // Calendars carry no auth_type/username; hydrate from `account get`
+    // (its JSON contains no secrets).
+    if (String(account.auth_type || "") === "")
+      runMutation(Model.accountGetArgs({ id: account.id }), "account-get")
+  }
+
+  function closeAccountDetails() {
+    accountDetailsTarget = null
+    pendingDeleteAccount = null
+    deleteConfirm.opened = false
+    mutationError = ""
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function submitAccountEditor(values) {
+    if (mutationBusy) return
+    var form = values || {}
+    if (String(form.name || "").trim() === "") return
+    lastAccountAddAuth = String(form.auth || "basic")
+    // The secret travels as process environment only (Model.accountAddEnv);
+    // argv (accountAddArgs) never sees it.
+    runMutation(Model.accountAddArgs(form), "account-add", Model.accountAddEnv(form))
+  }
+
+  function submitAccountDetails(values) {
+    if (mutationBusy) return
+    var form = values || {}
+    var id = String(form.id || (accountDetailsTarget || {}).id || "")
+    if (id === "") return
+    if (form.action === "rename") {
+      if (String(form.name || "").trim() === "") return
+      runMutation(Model.accountUpdateArgs({ id: id, name: form.name }), "account-update")
+      return
+    }
+    if (form.action === "sync") {
+      runMutation(Model.syncRunAccountArgs({ id: id }), "sync-run")
+      return
+    }
+    if (form.action === "credentials") {
+      runMutation(Model.accountCredentialsArgs({ id: id }), "account-credentials", Model.accountCredentialsEnv(form))
+      return
+    }
+    if (form.action === "reauth") {
+      // No secret provided means Chroncal reuses the stored one.
+      var env = String(form.clientSecret || "") !== ""
+        ? Model.accountAddEnv({ auth: "oauth2", clientSecret: form.clientSecret })
+        : ({})
+      runMutation(Model.accountReauthArgs({ id: id, clientId: form.clientId }), "account-reauth", env)
+      return
+    }
+    if (form.action === "remove") requestAccountDelete(form)
+  }
+
+  function requestAccountDelete(values) {
+    if (mutationBusy) return
+    var target = accountDetailsTarget || values || null
+    if (!target) return
+    pendingDeleteAccount = target
+    deleteConfirm.recurring = false
+    deleteConfirm.selectedIndex = 0
+    deleteConfirm.opened = true
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function confirmAccountRemove() {
+    deleteConfirm.opened = false
+    if (mutationBusy) {
+      pendingDeleteAccount = null
+      return
+    }
+    var account = pendingDeleteAccount || {}
+    pendingDeleteAccount = null
+    var args = Model.accountRemoveArgs(account)
+    if (String(args[2] || "") === "") return
+    runMutation(args, "account-remove")
+  }
+
+  function cancelSetupMutation() {
+    if (!mutationBusy) return
+    mutationCanceled = true
+    mutationProc.running = false  // Quickshell Process: SIGTERM
+  }
+
+  function refocusSetupSurface() {
+    if (showingAccountEditor) Qt.callLater(function() { accountEditor.forceActiveFocus() })
+    else if (showingAccountDetails) Qt.callLater(function() { accountDetails.forceActiveFocus() })
+    else if (showingCalendarEditor) Qt.callLater(function() { calendarEditor.forceActiveFocus() })
+    else Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function cancelEditor() {
@@ -542,10 +704,113 @@ Panel {
     if (kind === "calendar-default") return "Default calendar set"
     if (kind === "calendar-disconnect") return "Kept local copy"
     if (kind === "calendar-delete") return "Calendar deleted"
+    if (kind === "account-add") return "Account added"
+    if (kind === "account-update") return "Account renamed"
+    if (kind === "account-credentials") return "Credentials updated"
+    if (kind === "account-reauth") return "Signed in again"
+    if (kind === "account-remove") return "Account removed"
+    if (kind === "sync-run") return "Account synced"
     return "Done"
   }
 
+  function parseMutationJson() {
+    try {
+      var parsed = JSON.parse(String(mutationStdoutText))
+      if (parsed && typeof parsed === "object") return parsed
+    } catch (error) {}
+    return null
+  }
+
+  // `account get` JSON has no secrets; fold it into the inspector target.
+  function hydrateAccountDetails() {
+    var parsed = parseMutationJson()
+    if (!parsed || parsed.id === undefined) return
+    var merged = {}
+    var current = accountDetailsTarget || {}
+    for (var key in current) merged[key] = current[key]
+    merged.id = parsed.id
+    merged.display_name = String(parsed.display_name || parsed.name || current.display_name || "Account")
+    merged.name = merged.display_name
+    merged.server_url = String(parsed.server_url || current.server_url || "")
+    merged.auth_type = String(parsed.auth_type || "")
+    merged.username = String(parsed.username || "")
+    accountDetailsTarget = merged
+  }
+
+  function mergeAccountRename() {
+    var parsed = parseMutationJson()
+    if (!parsed || (parsed.name === undefined && parsed.display_name === undefined)) return
+    var merged = {}
+    var current = accountDetailsTarget || {}
+    for (var key in current) merged[key] = current[key]
+    merged.display_name = String(parsed.display_name || parsed.name || current.display_name || "Account")
+    merged.name = merged.display_name
+    accountDetailsTarget = merged
+  }
+
   function finishSetupMutation(exitCode, completed) {
+    if (completed === "account-get") {
+      if (exitCode !== 0) {
+        mutationError = String(mutationStderrText || mutationStdoutText || "Chroncal could not load the account").trim()
+        actionStatus = mutationError
+        actionStatusTimer.restart()
+      } else {
+        hydrateAccountDetails()
+      }
+      if (showingAccountDetails) Qt.callLater(function() { accountDetails.forceActiveFocus() })
+      return
+    }
+    if (completed === "account-add") {
+      if (exitCode !== 0) {
+        // Zero usable collections rolls the account back, but Chroncal
+        // may also exit non-zero after creating it when the initial
+        // sync fails; refresh either way so the list matches reality.
+        var addFailure = String(mutationStderrText || mutationStdoutText || "Chroncal could not add the account").trim()
+        mutationError = addFailure
+        actionStatus = addFailure
+        actionStatusTimer.restart()
+        refresh()
+        if (showingAccountEditor) Qt.callLater(function() { accountEditor.forceActiveFocus() })
+        return
+      }
+      actionStatus = setupActionStatus(completed)
+      actionStatusTimer.restart()
+      closeAccountEditor()
+      refresh()
+      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      return
+    }
+    if (completed === "account-update" || completed === "account-credentials"
+        || completed === "account-reauth" || completed === "sync-run") {
+      if (exitCode !== 0) {
+        mutationError = String(mutationStderrText || mutationStdoutText || "Chroncal could not complete the action").trim()
+        actionStatus = mutationError
+        actionStatusTimer.restart()
+      } else {
+        actionStatus = setupActionStatus(completed)
+        actionStatusTimer.restart()
+        if (completed === "account-update") mergeAccountRename()
+        if (completed === "account-credentials" || completed === "account-reauth") accountDetails.closeSubforms()
+        refresh()
+      }
+      if (showingAccountDetails) Qt.callLater(function() { accountDetails.forceActiveFocus() })
+      return
+    }
+    if (completed === "account-remove") {
+      if (exitCode !== 0) {
+        mutationError = String(mutationStderrText || mutationStdoutText || "Chroncal could not remove the account").trim()
+        actionStatus = mutationError
+        actionStatusTimer.restart()
+        if (showingAccountDetails) Qt.callLater(function() { accountDetails.forceActiveFocus() })
+        return
+      }
+      actionStatus = setupActionStatus(completed)
+      actionStatusTimer.restart()
+      closeAccountDetails()
+      refresh()
+      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      return
+    }
     if (exitCode !== 0) {
       mutationError = String(mutationStderrText || mutationStdoutText
         || (String(completed).indexOf("calendar-") === 0 ? "Chroncal could not save the calendar" : "Chroncal could not complete the action")).trim()
@@ -585,6 +850,17 @@ Panel {
   function finishMutation(exitCode) {
     var completed = mutationKind
     mutationBusy = false
+    if (mutationCanceled) {
+      // Esc killed an in-flight sign-in/sync (SIGTERM). Not a failure:
+      // keep whatever form is open and stay quiet.
+      mutationCanceled = false
+      mutationKind = ""
+      mutationError = ""
+      actionStatus = "Canceled"
+      actionStatusTimer.restart()
+      refocusSetupSurface()
+      return
+    }
     if (isSetupKind(completed)) {
       finishSetupMutation(exitCode, completed)
       return
@@ -687,6 +963,7 @@ Panel {
       anchors.fill: parent
       blocked: (root.searching && searchField.activeFocus) || root.showingEditor
         || (root.showingCalendarEditor && !deleteConfirm.opened)
+        || ((root.showingAccountEditor || root.showingAccountDetails) && !deleteConfirm.opened)
       onMoveRequested: function(dx, dy) {
         if (deleteConfirm.opened) {
           if (dx !== 0) deleteConfirm.cycle(dx)
@@ -746,7 +1023,9 @@ Panel {
           Text {
             width: parent.width - headerActions.width
             anchors.verticalCenter: parent.verticalCenter
-            text: root.showingCalendarEditor ? (root.calendarEditorMode === "edit" ? "EDIT CALENDAR" : "NEW CALENDAR") : (root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : (root.showingHelp ? "SHORTCUTS" : "UPCOMING"))))
+            text: root.showingAccountEditor ? "NEW ACCOUNT"
+              : (root.showingAccountDetails ? "ACCOUNT"
+              : (root.showingCalendarEditor ? (root.calendarEditorMode === "edit" ? "EDIT CALENDAR" : "NEW CALENDAR") : (root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : (root.showingHelp ? "SHORTCUTS" : "UPCOMING"))))))
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -762,7 +1041,9 @@ Panel {
             PanelActionButton {
               visible: root.showingSubview
               iconText: "←"
-              tooltipText: root.showingEditor || root.showingCalendarEditor ? "Cancel and go back" : "Back to agenda"
+              tooltipText: root.showingEditor || root.showingCalendarEditor || root.showingAccountEditor
+                ? "Cancel and go back"
+                : "Back to agenda"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               onClicked: root.handleClose()
@@ -974,6 +1255,7 @@ Panel {
 
           CalendarSettings {
             visible: root.showingSettings && !root.showingCalendarEditor
+              && !root.showingAccountEditor && !root.showingAccountDetails
             anchors.fill: parent
             bar: root.bar
             calendars: root.calendars
@@ -991,6 +1273,8 @@ Panel {
             onConfigurationChanged: function(values) { root.persistSettings(values) }
             onNewCalendarRequested: root.openCalendarCreate()
             onEditCalendarRequested: function(calendar) { root.openCalendarEdit(calendar) }
+            onAddAccountRequested: root.openAccountCreate()
+            onOpenAccountRequested: function(account) { root.openAccountDetails(account) }
           }
 
           CalendarEditor {
@@ -1005,6 +1289,38 @@ Panel {
             externalError: root.mutationError
             onCanceled: root.closeCalendarEditor()
             onSubmitted: function(values) { root.submitCalendarEditor(values) }
+          }
+
+          AccountEditor {
+            id: accountEditor
+            visible: root.showingAccountEditor
+            enabled: !deleteConfirm.opened
+            anchors.fill: parent
+            bar: root.bar
+            busy: root.mutationBusy
+            busyLabel: root.accountBusyLabel
+            externalError: root.mutationError
+            onCanceled: root.closeAccountEditor()
+            onSubmitted: function(values) { root.submitAccountEditor(values) }
+            onCancelRequested: root.cancelSetupMutation()
+          }
+
+          AccountDetails {
+            id: accountDetails
+            visible: root.showingAccountDetails
+            enabled: !deleteConfirm.opened
+            anchors.fill: parent
+            bar: root.bar
+            account: root.accountDetailsTarget
+            calendars: root.calendars
+            busy: root.mutationBusy
+            busyLabel: root.accountBusyLabel
+            externalError: root.mutationError
+            onCanceled: root.closeAccountDetails()
+            onSubmitted: function(values) { root.submitAccountDetails(values) }
+            onCancelRequested: root.cancelSetupMutation()
+            // Task 12 wires the grouped calendar manager.
+            onManageCalendarsRequested: function(account) {}
           }
 
           ShortcutHelp {
@@ -1022,15 +1338,19 @@ Panel {
         id: deleteConfirm
         anchors.fill: parent
         z: 20
-        title: root.pendingDeleteCalendarValues !== null
-          ? String((root.calendarEditorTarget || {}).name || "this calendar")
-          : String((root.pendingDeleteEvent || root.selectedEvent) ? (root.pendingDeleteEvent || root.selectedEvent).title : "this event")
+        title: root.pendingDeleteAccount !== null
+          ? String((root.pendingDeleteAccount || {}).display_name
+            || (root.accountDetailsTarget || {}).display_name || "this account")
+          : (root.pendingDeleteCalendarValues !== null
+            ? String((root.calendarEditorTarget || {}).name || "this calendar")
+            : String((root.pendingDeleteEvent || root.selectedEvent) ? (root.pendingDeleteEvent || root.selectedEvent).title : "this event"))
         background: root.bar ? root.bar.background : Color.background
         foreground: root.contentForeground
         fontFamily: root.contentFontFamily
         onCanceled: root.dismissCalendarDeleteConfirm()
         onChosen: function(scope) {
-          if (root.pendingDeleteCalendarValues !== null) root.confirmCalendarDelete()
+          if (root.pendingDeleteAccount !== null) root.confirmAccountRemove()
+          else if (root.pendingDeleteCalendarValues !== null) root.confirmCalendarDelete()
           else root.confirmDelete(scope)
         }
       }

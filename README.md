@@ -39,6 +39,7 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Deletes this event, this and following, or all events in a recurring series from the panel confirm.
 - Replies Yes, Maybe, or No from a Going control on event details when the calendar owner is an invited attendee.
 - Creates and edits local calendars (name, color, email, default, hide) from Settings.
+- Adds and manages CalDAV accounts (password, bearer token, Google OAuth) from Settings; secrets travel as process environment, never argv.
 
 This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 
