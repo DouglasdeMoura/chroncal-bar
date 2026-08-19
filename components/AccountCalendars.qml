@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls as QQC
 import qs.Commons
 import qs.Ui
+import "../Model.js" as Model
 
 Flickable {
   id: root
@@ -15,6 +16,8 @@ Flickable {
   property string externalError: ""
   // Id of the default calendar that belongs to this account ("" when none).
   property string defaultCalendarId: ""
+  // Locals and other-account calendars that stay if this account is emptied.
+  property var remainingCalendars: []
 
   property var checkedPaths: []
   property string defaultValue: ""
@@ -32,20 +35,8 @@ Flickable {
     }
     return null
   }
-  readonly property bool defaultNeedsPick: defaultRow !== null
-    && checkedPaths.indexOf(String(defaultRow.path || "")) === -1
-    && checkedPaths.length > 0
-  readonly property var defaultOptions: {
-    var options = []
-    var list = rows || []
-    for (var i = 0; i < list.length; i += 1) {
-      var row = list[i] || {}
-      if (row.importable === true && row.missing !== true
-        && checkedPaths.indexOf(String(row.path || "")) !== -1)
-        options.push({ value: String(row.path || ""), label: String(row.name || "Calendar") })
-    }
-    return options
-  }
+  readonly property bool defaultNeedsPick: Model.accountCalendarsDefaultNeedsPick(defaultRow, checkedPaths)
+  readonly property var defaultOptions: Model.accountCalendarsDefaultOptions(rows, checkedPaths, remainingCalendars)
   readonly property bool someImportedUnchecked: {
     var list = rows || []
     for (var i = 0; i < list.length; i += 1) {
@@ -56,7 +47,7 @@ Flickable {
   }
   readonly property bool canSubmit: !loading && !busy
     && !(rows.length === 0 && externalError !== "")
-    && (!defaultNeedsPick || checkedPaths.indexOf(defaultValue) !== -1)
+    && (!defaultNeedsPick || Model.accountCalendarsDefaultSelected(defaultOptions, defaultValue))
 
   signal canceled()
   signal submitted(var values)
@@ -228,11 +219,11 @@ Flickable {
         }
       }
 
-      FieldLabel { visible: root.defaultNeedsPick; text: "NEW DEFAULT" }
+      FieldLabel { visible: root.defaultNeedsPick && root.defaultOptions.length > 0; text: "NEW DEFAULT" }
 
       Dropdown {
         id: defaultDropdown
-        visible: root.defaultNeedsPick
+        visible: root.defaultNeedsPick && root.defaultOptions.length > 0
         width: parent.width
         showLabel: false
         options: root.defaultOptions
@@ -247,6 +238,17 @@ Flickable {
         property: "value"
         value: root.defaultValue
       }
+    }
+
+    Text {
+      visible: !root.loading && root.defaultNeedsPick && root.defaultOptions.length === 0
+      width: parent.width
+      text: "Chroncal needs another calendar to become the default before this account can be emptied."
+      textFormat: Text.PlainText
+      color: Color.urgent
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      wrapMode: Text.WordWrap
     }
 
     Text {
