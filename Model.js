@@ -1330,6 +1330,29 @@ function syncRunAccountArgs(account) {
   return ["sync", "run", "--account", String((account || {}).id || ""), "--output", "json"];
 }
 
+function syncStatusArgs() {
+  return ["sync", "status", "--output", "json"];
+}
+
+function syncConflictsArgs() {
+  return ["sync", "conflicts", "--output", "json"];
+}
+
+function syncResolveArgs(options) {
+  var values = options || {};
+  var pick = String(values.pick || "");
+  if (pick !== "local" && pick !== "server") return [];
+  var id = String(values.id || "");
+  if (id === "") return [];
+  return ["sync", "resolve", id, "--pick", pick, "--output", "json"];
+}
+
+function syncResetArgs(calendar) {
+  var id = String((calendar || {}).id || "");
+  if (id === "") return [];
+  return ["sync", "reset", "--calendar", id, "--output", "json"];
+}
+
 function icalImportArgs(options) {
   var values = options || {};
   var args = ["ical", "import", String(values.path || "")];

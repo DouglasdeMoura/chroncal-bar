@@ -836,3 +836,25 @@ assert.deepEqual(model.groupCalendars([{ id: 1, name: "Only local" }], []), [
 ]);
 // Accounts with no calendars at all and no local calendars: no local section.
 assert.equal(model.groupCalendars([], [{ id: 5, display_name: "A", name: "A", server_url: "", username: "", auth_type: "" }]).length, 1);
+// Task 13: sync status, conflicts, resolve, and reset args
+
+assert.deepEqual(model.syncStatusArgs(), ["sync", "status", "--output", "json"]);
+assert.deepEqual(model.syncConflictsArgs(), ["sync", "conflicts", "--output", "json"]);
+assert.deepEqual(
+  model.syncResolveArgs({ id: 5, pick: "local" }),
+  ["sync", "resolve", "5", "--pick", "local", "--output", "json"]
+);
+assert.deepEqual(
+  model.syncResolveArgs({ id: "7", pick: "server" }),
+  ["sync", "resolve", "7", "--pick", "server", "--output", "json"]
+);
+// --pick is required and only accepts local|server; anything else is a no-op.
+assert.deepEqual(model.syncResolveArgs({ id: 5, pick: "both" }), []);
+assert.deepEqual(model.syncResolveArgs({ id: 5 }), []);
+assert.deepEqual(model.syncResolveArgs({ id: 5, pick: "" }), []);
+assert.deepEqual(model.syncResolveArgs({ id: 0, pick: "local" }), []);
+assert.deepEqual(model.syncResolveArgs({ pick: "server" }), []);
+assert.deepEqual(model.syncResetArgs({ id: 11 }), ["sync", "reset", "--calendar", "11", "--output", "json"]);
+assert.deepEqual(model.syncResetArgs({ id: "Work" }), ["sync", "reset", "--calendar", "Work", "--output", "json"]);
+assert.deepEqual(model.syncResetArgs({}), []);
+assert.deepEqual(model.syncResetArgs(null), []);

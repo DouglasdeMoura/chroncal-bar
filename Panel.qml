@@ -44,10 +44,21 @@ Panel {
   property string discoveryError: ""
   property string discoveryStdoutText: ""
   property string discoveryStderrText: ""
+  property var syncStatusRows: []
+  property var syncIssueRows: []
+  property bool syncStatusBusy: false
+  property bool syncIssuesBusy: false
+  readonly property bool syncStateBusy: syncStatusBusy || syncIssuesBusy
+  property string syncStateError: ""
+  property string syncStatusStdoutText: ""
+  property string syncStatusStderrText: ""
+  property string syncIssuesStdoutText: ""
+  property string syncIssuesStderrText: ""
+  property var pendingSyncResetCalendar: null
   property bool showingIcalImport: false
-   property bool showingSettings: false
-   property bool showingHelp: false
-   readonly property bool showingSubview: showingDetails || showingEditor || showingCalendarEditor
+  property bool showingSettings: false
+  property bool showingHelp: false
+  readonly property bool showingSubview: showingDetails || showingEditor || showingCalendarEditor
     || showingAccountEditor || showingAccountDetails || showingAccountCalendars || showingIcalImport
     || showingSettings || showingHelp
   property bool mutationBusy: false
@@ -63,6 +74,7 @@ Panel {
   property string editLoadEventKey: ""
   property var editLoadSourceEvent: null
   property string editLoadStdoutText: ""
+  property string editLoadStderrText: ""
   property var pendingDeleteEvent: null
   property var pendingDeleteCalendarValues: null
   property var pendingDeleteAccount: null
@@ -74,6 +86,12 @@ Panel {
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property string settingsErrorText: {
+    if (showingCalendarEditor || showingAccountEditor || showingAccountDetails
+      || showingAccountCalendars || showingIcalImport)
+      return syncStateError
+    return syncStateError !== "" ? syncStateError : mutationError
+  }
   readonly property string accountBusyLabel: {
     if (mutationKind === "account-add")
       return lastAccountAddAuth === "oauth2" ? "Waiting for Google authorization…" : "Signing in…"
@@ -104,6 +122,8 @@ Panel {
     root.showingHelp = false
     root.resetEditState()
     root.pendingDeleteEvent = null
+    root.pendingSyncResetCalendar = null
+    deleteConfirm.actionLabel = ""
     deleteConfirm.opened = false
     root.controller.hide()
   }
@@ -177,6 +197,7 @@ Panel {
     showingHelp = false
     showingSettings = showingSettings ? false : true
     resetEditState()
+    if (showingSettings) fetchSyncState()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
@@ -234,6 +255,8 @@ Panel {
     pendingDeleteEvent = null
     pendingDeleteCalendarValues = null
     pendingDeleteAccount = null
+    pendingSyncResetCalendar = null
+    deleteConfirm.actionLabel = ""
     if (showingCalendarEditor) Qt.callLater(function() { calendarEditor.forceActiveFocus() })
     else if (showingAccountEditor) Qt.callLater(function() { accountEditor.forceActiveFocus() })
     else if (showingAccountCalendars) Qt.callLater(function() { accountCalendars.forceActiveFocus() })
@@ -498,6 +521,7 @@ Panel {
     if (mutationBusy) return
     pendingDeleteCalendarValues = values
     deleteConfirm.recurring = false
+    deleteConfirm.actionLabel = ""
     deleteConfirm.selectedIndex = 0
     deleteConfirm.opened = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -609,6 +633,7 @@ Panel {
     if (!target) return
     pendingDeleteAccount = target
     deleteConfirm.recurring = false
+    deleteConfirm.actionLabel = ""
     deleteConfirm.selectedIndex = 0
     deleteConfirm.opened = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -789,6 +814,7 @@ Panel {
     if (!event || mutationBusy || editLoadBusy || !Model.canDeleteEvent(event) || showingSettings || showingHelp || showingEditor) return
     pendingDeleteEvent = event
     deleteConfirm.recurring = Model.isRecurringEvent(event)
+    deleteConfirm.actionLabel = ""
     deleteConfirm.selectedIndex = 0
     deleteConfirm.opened = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -866,6 +892,8 @@ Panel {
     if (kind === "account-credentials") return "Credentials updated"
     if (kind === "account-reauth") return "Signed in again"
     if (kind === "sync-run") return "Account synced"
+    if (kind === "sync-resolve") return "Conflict resolved"
+    if (kind === "sync-reset") return "Sync state reset"
     if (kind === "account-calendars-set") return "Calendars updated"
     if (kind === "ical-import") return "Events imported"
     if (kind === "account-remove") return "Account removed"
@@ -936,6 +964,7 @@ Panel {
       actionStatusTimer.restart()
       closeAccountEditor()
       refresh()
+      fetchSyncState()
       Qt.callLater(function() { keyCatcher.forceActiveFocus() })
       return
     }
@@ -957,8 +986,24 @@ Panel {
         }
         if (completed === "account-credentials" || completed === "account-reauth") accountDetails.closeSubforms()
         refresh()
+        if (completed === "sync-run") fetchSyncState()
       }
       if (showingAccountDetails) Qt.callLater(function() { accountDetails.forceActiveFocus() })
+      return
+    }
+    if (completed === "sync-resolve" || completed === "sync-reset") {
+      if (exitCode !== 0) {
+        mutationError = String(mutationStderrText || mutationStdoutText || "Chroncal could not complete the action").trim()
+        actionStatus = mutationError
+        actionStatusTimer.restart()
+        Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+        return
+      }
+      actionStatus = setupActionStatus(completed)
+      actionStatusTimer.restart()
+      refresh()
+      fetchSyncState()
+      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
       return
     }
     if (completed === "account-remove") {
@@ -992,6 +1037,7 @@ Panel {
       if (accountRemoved) closeAccountDetails()
       else Qt.callLater(function() { accountDetails.forceActiveFocus() })
       refresh()
+      fetchSyncState()
       return
     }
     if (completed === "ical-import") {
@@ -1050,6 +1096,96 @@ Panel {
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.discoveryStdoutText = text }
     stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.discoveryStderrText = text }
     onExited: function(exitCode) { Qt.callLater(function() { root.finishDiscoveryLoad(exitCode) }) }
+  }
+
+  function fetchSyncState() {
+    if (!hostWidget || !hostWidget.chroncalExecScript) return
+    if (syncStatusBusy || syncIssuesBusy) return
+    syncStatusBusy = true
+    syncIssuesBusy = true
+    syncStatusStdoutText = ""
+    syncStatusStderrText = ""
+    syncIssuesStdoutText = ""
+    syncIssuesStderrText = ""
+    syncStatusProc.command = [hostWidget.chroncalExecScript].concat(Model.syncStatusArgs())
+    syncStatusProc.running = true
+    syncIssuesProc.command = [hostWidget.chroncalExecScript].concat(Model.syncConflictsArgs())
+    syncIssuesProc.running = true
+  }
+
+  function finishSyncStatusLoad(exitCode) {
+    syncStatusBusy = false
+    if (!root.opened || !showingSettings) return
+    if (exitCode !== 0) {
+      var statusFailure = String(syncStatusStderrText || syncStatusStdoutText || "").trim()
+      syncStateError = statusFailure !== "" ? statusFailure : "Sync status unavailable"
+      return
+    }
+    var statusParsed = null
+    try {
+      statusParsed = JSON.parse(String(syncStatusStdoutText))
+    } catch (error) {
+      statusParsed = null
+    }
+    if (!Array.isArray(statusParsed)) return
+    syncStatusRows = statusParsed
+    syncStateError = ""
+  }
+
+  function finishSyncIssuesLoad(exitCode) {
+    syncIssuesBusy = false
+    if (!root.opened || !showingSettings) return
+    if (exitCode !== 0) {
+      var issuesFailure = String(syncIssuesStderrText || syncIssuesStdoutText || "").trim()
+      syncStateError = issuesFailure !== "" ? issuesFailure : "Sync status unavailable"
+      return
+    }
+    var issuesParsed = null
+    try {
+      issuesParsed = JSON.parse(String(syncIssuesStdoutText))
+    } catch (error) {
+      issuesParsed = null
+    }
+    if (!Array.isArray(issuesParsed)) return
+    syncIssueRows = issuesParsed
+  }
+
+  function requestSyncReset(row) {
+    if (mutationBusy || !row) return
+    pendingSyncResetCalendar = row
+    deleteConfirm.recurring = false
+    deleteConfirm.actionLabel = "Reset"
+    deleteConfirm.selectedIndex = 0
+    deleteConfirm.opened = true
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function confirmSyncReset() {
+    deleteConfirm.opened = false
+    deleteConfirm.actionLabel = ""
+    if (mutationBusy) {
+      pendingSyncResetCalendar = null
+      return
+    }
+    var row = pendingSyncResetCalendar || {}
+    pendingSyncResetCalendar = null
+    var args = Model.syncResetArgs({ id: row.calendar_id })
+    if (args.length === 0) return
+    runMutation(args, "sync-reset")
+  }
+
+  Process {
+    id: syncStatusProc
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.syncStatusStdoutText = text }
+    stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.syncStatusStderrText = text }
+    onExited: function(exitCode) { Qt.callLater(function() { root.finishSyncStatusLoad(exitCode) }) }
+  }
+
+  Process {
+    id: syncIssuesProc
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.syncIssuesStdoutText = text }
+    stderr: StdioCollector { waitForEnd: true; onStreamFinished: root.syncIssuesStderrText = text }
+    onExited: function(exitCode) { Qt.callLater(function() { root.finishSyncIssuesLoad(exitCode) }) }
   }
 
   function finishMutation(exitCode) {
@@ -1524,6 +1660,11 @@ Panel {
             calendars: root.calendars
             accounts: root.accounts
             busy: root.mutationBusy
+            syncStatus: root.syncStatusRows
+            syncIssues: root.syncIssueRows
+            syncStateBusy: root.syncStateBusy
+            statusText: root.actionStatus
+            errorText: root.settingsErrorText
             includedCalendarIds: Model.selectedCalendarIds(root.calendars, root.settings)
             calendarSelectionCustomized: Model.calendarSelectionCustomized(root.settings)
             showTime: root.setting("showTime", "On")
@@ -1540,6 +1681,14 @@ Panel {
             onAddAccountRequested: root.openAccountCreate()
             onOpenAccountRequested: function(account) { root.openAccountDetails(account) }
             onImportIcalRequested: root.openIcalImport()
+            onSyncRequested: function(account) {
+              if (!root.mutationBusy) root.runMutation(Model.syncRunAccountArgs(account), "sync-run")
+            }
+            onResolveRequested: function(issue, pick) {
+              var args = Model.syncResolveArgs({ id: (issue || {}).id, pick: pick })
+              if (!root.mutationBusy && args.length > 0) root.runMutation(args, "sync-resolve")
+            }
+            onResetRequested: function(row) { root.requestSyncReset(row) }
           }
 
           CalendarEditor {
@@ -1641,18 +1790,21 @@ Panel {
         id: deleteConfirm
         anchors.fill: parent
         z: 20
-        title: root.pendingDeleteAccount !== null
-          ? String((root.pendingDeleteAccount || {}).display_name
-            || (root.accountDetailsTarget || {}).display_name || "this account")
-          : (root.pendingDeleteCalendarValues !== null
-            ? String((root.calendarEditorTarget || {}).name || "this calendar")
-            : String((root.pendingDeleteEvent || root.selectedEvent) ? (root.pendingDeleteEvent || root.selectedEvent).title : "this event"))
+        title: root.pendingSyncResetCalendar !== null
+          ? String((root.pendingSyncResetCalendar || {}).calendar_name || "this calendar")
+          : (root.pendingDeleteAccount !== null
+            ? String((root.pendingDeleteAccount || {}).display_name
+              || (root.accountDetailsTarget || {}).display_name || "this account")
+            : (root.pendingDeleteCalendarValues !== null
+              ? String((root.calendarEditorTarget || {}).name || "this calendar")
+              : String((root.pendingDeleteEvent || root.selectedEvent) ? (root.pendingDeleteEvent || root.selectedEvent).title : "this event")))
         background: root.bar ? root.bar.background : Color.background
         foreground: root.contentForeground
         fontFamily: root.contentFontFamily
         onCanceled: root.dismissCalendarDeleteConfirm()
         onChosen: function(scope) {
-          if (root.pendingDeleteAccount !== null) root.confirmAccountRemove()
+          if (root.pendingSyncResetCalendar !== null) root.confirmSyncReset()
+          else if (root.pendingDeleteAccount !== null) root.confirmAccountRemove()
           else if (root.pendingDeleteCalendarValues !== null) root.confirmCalendarDelete()
           else root.confirmDelete(scope)
         }
