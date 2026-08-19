@@ -698,6 +698,48 @@ assert.deepEqual(model.calendarDeleteArgs({ id: 4, promote: "Work" }), ["calenda
 
 assert.deepEqual(model.accountRemoveArgs({ id: 3 }), ["account", "remove", "3", "--yes", "--output", "json"]);
 assert.deepEqual(model.syncRunAccountArgs({ id: 3 }), ["sync", "run", "--account", "3", "--output", "json"]);
+
+// Task 11: account inspector args and calendar-derived accounts
+
+assert.deepEqual(model.accountUpdateArgs({ id: 3, name: "Personal" }), ["account", "update", "3", "--name", "Personal", "--output", "json"]);
+assert.deepEqual(model.accountUpdateArgs({ id: 3, name: "-dash" }), ["account", "update", "3", "--name", "-dash", "--output", "json"]);
+assert.deepEqual(model.accountUpdateArgs({ id: 3 }), ["account", "update", "3", "--output", "json"]);
+assert.deepEqual(model.accountCredentialsArgs({ id: 3 }), ["account", "credentials", "3", "--output", "json"]);
+assert.deepEqual(model.accountReauthArgs({ id: 3 }), ["account", "reauth", "3", "--output", "json"]);
+assert.deepEqual(
+  model.accountReauthArgs({ id: 3, clientId: "id.apps.googleusercontent.com" }),
+  ["account", "reauth", "3", "--oauth-client-id", "id.apps.googleusercontent.com", "--output", "json"]
+);
+assert.deepEqual(model.accountGetArgs({ id: 3 }), ["account", "get", "3", "--output", "json"]);
+
+// Inspector arg builders take no secrets; stray secret fields must not leak onto argv.
+const inspectorSecretForm = { id: 3, name: "Work", password: "pw-secret", token: "tok-secret", clientSecret: "goc-secret" };
+[model.accountUpdateArgs(inspectorSecretForm), model.accountCredentialsArgs(inspectorSecretForm),
+  model.accountReauthArgs(inspectorSecretForm), model.accountGetArgs(inspectorSecretForm)].forEach(args => {
+  const joined = args.join(" ");
+  assert.ok(joined.indexOf("pw-secret") === -1);
+  assert.ok(joined.indexOf("tok-secret") === -1);
+  assert.ok(joined.indexOf("goc-secret") === -1);
+});
+
+const accountCalendars = [
+  { id: 11, name: "Work", account_id: 3, account_name: "Fastmail", remote_url: "https://caldav.fastmail.com/dav/" },
+  { id: 12, name: "Home", account_id: "3", account_name: "Fastmail", remote_url: "https://ignored.example.com/" },
+  { id: 13, name: "G", account_id: 7, account_name: "Google", remote_url: "https://apidata.googleusercontent.com/caldav" },
+  { id: 14, name: "Local", account_id: 0 },
+  { id: 15, name: "Zero string", account_id: "0" },
+  { id: 16, name: "Empty", account_id: "" },
+  { id: 17, name: "Null", account_id: null },
+  { id: 18, name: "Missing" },
+  { id: 19, name: "Unnamed", account_id: 9, remote_url: "" }
+];
+assert.deepEqual(model.accountsFromCalendars(accountCalendars), [
+  { id: 3, display_name: "Fastmail", name: "Fastmail", server_url: "https://caldav.fastmail.com/dav/", username: "", auth_type: "", calendar_count: 2 },
+  { id: 7, display_name: "Google", name: "Google", server_url: "https://apidata.googleusercontent.com/caldav", username: "", auth_type: "", calendar_count: 1 },
+  { id: 9, display_name: "Account", name: "Account", server_url: "", username: "", auth_type: "", calendar_count: 1 }
+]);
+assert.deepEqual(model.accountsFromCalendars([]), []);
+assert.deepEqual(model.accountsFromCalendars([{ id: 1, name: "Local" }]), []);
 assert.deepEqual(model.icalImportArgs({ path: "/tmp/a.ics", calendar: "Work" }), ["ical", "import", "/tmp/a.ics", "--calendar", "Work", "--output", "json"]);
 
 assert.deepEqual(
