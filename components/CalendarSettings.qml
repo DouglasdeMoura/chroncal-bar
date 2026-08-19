@@ -483,7 +483,7 @@ Flickable {
 
     Text {
       width: parent.width
-      text: "Included calendars only filter this bar. Hidden calendars are removed from Chroncal and the agenda entirely."
+      text: "Included calendars only filter this bar. Hidden calendars keep their events but leave the agenda; Settings still lists them so they can be shown again."
       textFormat: Text.PlainText
       color: Util.alpha(root.foreground, 0.56)
       font.family: root.fontFamily
