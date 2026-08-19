@@ -40,6 +40,7 @@ Panel {
   property var accountCalendarsAccount: null
   property var discoveryRows: []
   property bool discoveryBusy: false
+  property bool discoveryCancelPending: false
   property string discoveryError: ""
   property string discoveryStdoutText: ""
   property string discoveryStderrText: ""
@@ -118,8 +119,10 @@ Panel {
     accountDetailsTarget = null
     pendingDeleteAccount = null
     if (discoveryBusy) {
+      // Keep discoveryBusy until finishDiscoveryLoad so a stale exit cannot
+      // clobber a session reopened before the killed process reported.
+      discoveryCancelPending = true
       discoveryProc.running = false
-      discoveryBusy = false
     }
     showingAccountCalendars = false
     accountCalendarsAccount = null
@@ -647,6 +650,12 @@ Panel {
   }
 
   function finishDiscoveryLoad(exitCode) {
+    if (discoveryCancelPending) {
+      // The view was closed and this load was killed; ignore the exit.
+      discoveryCancelPending = false
+      discoveryBusy = false
+      return
+    }
     discoveryBusy = false
     if (!showingAccountCalendars || accountCalendarsAccount === null) return
     if (exitCode !== 0) {
@@ -664,6 +673,7 @@ Panel {
       discoveryError = "Chroncal could not load the account calendars"
       return
     }
+    discoveryError = ""
     discoveryRows = parsed.calendars || []
     if (parsed.account && typeof parsed.account === "object" && parsed.account.id !== undefined) {
       var merged = {}
@@ -681,8 +691,9 @@ Panel {
 
   function closeAccountCalendars() {
     if (discoveryBusy) {
-      discoveryProc.running = false  // Quickshell Process: SIGTERM
-      discoveryBusy = false
+      // Quickshell Process: SIGTERM. Busy stays until finishDiscoveryLoad.
+      discoveryCancelPending = true
+      discoveryProc.running = false
     }
     showingAccountCalendars = false
     accountCalendarsAccount = null
