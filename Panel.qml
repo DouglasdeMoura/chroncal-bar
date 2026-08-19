@@ -160,7 +160,7 @@ Panel {
   }
 
   function moveSelection(step) {
-    if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || visibleEvents.length === 0) return
     var current = selectedEventIndex()
     var next = current < 0 ? (step > 0 ? 0 : visibleEvents.length - 1) : Model.clampSelection(current + step, visibleEvents.length)
     selectedEventKey = Model.eventKey(visibleEvents[next])
@@ -168,14 +168,14 @@ Panel {
 
   function focusedEvent() {
     if (selectedEvent) return selectedEvent
-    if (showingSettings || showingHelp || showingEditor) return null
+    if (showingSettings || showingHelp || showingEditor || showingCalendarEditor) return null
     var current = selectedEventIndex()
     if (current < 0) return null
     return visibleEvents[current]
   }
 
   function moveSelectionByDay(direction) {
-    if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || visibleEvents.length === 0) return
     var index = Model.adjacentDayFirstEventIndex(visibleEvents, selectedEventIndex(), direction)
     if (index >= 0) selectedEventKey = Model.eventKey(visibleEvents[index])
   }
@@ -205,13 +205,13 @@ Panel {
   }
 
   function activateSelection() {
-    if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || visibleEvents.length === 0) return
     var current = selectedEventIndex()
     showEvent(visibleEvents[current < 0 ? 0 : current])
   }
 
   function beginSearch() {
-    if (showingDetails || showingSettings || showingEditor || showingHelp || agendaData.status !== "ok") return
+    if (showingDetails || showingSettings || showingEditor || showingCalendarEditor || showingHelp || agendaData.status !== "ok") return
     searching = true
     Qt.callLater(function() { searchField.forceActiveFocus() })
   }
@@ -349,6 +349,7 @@ Panel {
   }
 
   function openCalendarCreate() {
+    if (mutationBusy) return
     selectedEvent = null
     editorMode = ""
     showingHelp = false
@@ -360,7 +361,7 @@ Panel {
   }
 
   function openCalendarEdit(calendar) {
-    if (!calendar) return
+    if (mutationBusy || !calendar) return
     selectedEvent = null
     editorMode = ""
     showingHelp = false
@@ -373,8 +374,8 @@ Panel {
   }
 
   function closeCalendarEditor() {
-    calendarEditorMode = ""
-    calendarEditorTarget = null
+    closeCalendarEditorState()
+    deleteConfirm.opened = false
     mutationError = ""
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -718,8 +719,8 @@ Panel {
         else if (text === "/") root.beginSearch()
         else if (text === "," || text === "C") root.toggleSettings()
         else if (text === "c") root.startCreate()
-        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && (text === "t" || text === "T")) root.selectToday()
-        else if (!root.showingSettings && !root.showingEditor && (text === "e" || text === "E")) root.startEdit()
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && (text === "t" || text === "T")) root.selectToday()
+        else if (!root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && (text === "e" || text === "E")) root.startEdit()
         else if (root.showingDetails && (text === "v" || text === "V")) root.joinEvent()
         else if (root.showingDetails && (text === "p" || text === "P")) root.copyEventDetails()
         else if (root.showingDetails && (text === "g" || text === "G")) root.openChroncal()
@@ -764,12 +765,7 @@ Panel {
               tooltipText: root.showingEditor || root.showingCalendarEditor ? "Cancel and go back" : "Back to agenda"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
-              onClicked: {
-                if (deleteConfirm.opened) deleteConfirm.opened = false
-                else if (root.showingCalendarEditor) root.closeCalendarEditor()
-                else if (root.showingEditor) root.cancelEditor()
-                else root.backToAgenda()
-              }
+              onClicked: root.handleClose()
             }
 
             PanelActionButton {
@@ -813,7 +809,7 @@ Panel {
 
           TextField {
             id: searchField
-            visible: root.searching && !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok"
+            visible: root.searching && !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingHelp && root.agendaData.status === "ok"
             enabled: visible
             activeFocusOnPress: visible
             anchors.top: parent.top
@@ -860,7 +856,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "unavailable"
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingHelp && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
             width: parent.width - Style.space(24)
             text: "Chroncal is unavailable\nThe agenda will retry automatically."
@@ -872,7 +868,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length === 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length === 0
             anchors.centerIn: parent
             text: root.searchQuery !== "" ? "No matching events" : "No upcoming events"
             color: Util.alpha(root.contentForeground, 0.66)
@@ -882,7 +878,7 @@ Panel {
 
           Flickable {
             id: agendaFlick
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length > 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingCalendarEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length > 0
             anchors.top: searchField.bottom
             anchors.topMargin: searchField.visible ? Style.space(10) : 0
             anchors.left: parent.left
@@ -981,6 +977,7 @@ Panel {
             anchors.fill: parent
             bar: root.bar
             calendars: root.calendars
+            busy: root.mutationBusy
             includedCalendarIds: Model.selectedCalendarIds(root.calendars, root.settings)
             calendarSelectionCustomized: Model.calendarSelectionCustomized(root.settings)
             showTime: root.setting("showTime", "On")

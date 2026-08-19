@@ -684,7 +684,10 @@ assert.deepEqual(model.calendarCreateArgs({ title: "Plain" }), ["calendar", "cre
 assert.deepEqual(model.calendarCreateArgs({ title: "D", color: "", description: "Desc", email: "" }), ["calendar", "create", "--description", "Desc", "--output", "json", "--", "D"]);
 
 assert.deepEqual(model.calendarUpdateArgs({ id: 2, name: "Renamed", color: "#00FF00" }), ["calendar", "update", "2", "--name", "Renamed", "--color", "#00FF00", "--output", "json"]);
-assert.deepEqual(model.calendarUpdateArgs({ id: 2, name: "Same", description: "", email: "" }), ["calendar", "update", "2", "--name", "Same", "--output", "json"]);
+// Empty strings must be sent: chroncal only changes flags it receives, so
+// --description "" / --email "" is how the bar clears those fields.
+assert.deepEqual(model.calendarUpdateArgs({ id: 2, name: "Same", description: "", email: "" }), ["calendar", "update", "2", "--name", "Same", "--description", "", "--email", "", "--output", "json"]);
+assert.deepEqual(model.calendarUpdateArgs({ id: 2, email: "" }), ["calendar", "update", "2", "--email", "", "--output", "json"]);
 assert.deepEqual(model.calendarUpdateArgs({ id: 5, disconnectRemote: true }), ["calendar", "update", "5", "--disconnect-remote", "--output", "json"]);
 
 assert.deepEqual(model.calendarHideArgs({ id: 4 }), ["calendar", "hide", "4", "--output", "json"]);

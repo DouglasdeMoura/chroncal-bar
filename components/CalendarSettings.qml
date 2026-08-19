@@ -11,6 +11,7 @@ Flickable {
   property var calendars: []
   property var includedCalendarIds: []
   property bool calendarSelectionCustomized: false
+  property bool busy: false
   property string showTime: "On"
   property string showTitle: "On"
   property int relativeLeadMinutes: 10
@@ -57,6 +58,8 @@ Flickable {
       leftAlign: true
       foreground: root.foreground
       fontFamily: root.fontFamily
+      enabled: !root.busy
+      opacity: enabled ? 1 : 0.55
       onClicked: root.newCalendarRequested()
     }
 
@@ -96,6 +99,8 @@ Flickable {
             focusable: true
             foreground: root.foreground
             fontFamily: root.fontFamily
+            enabled: !root.busy
+            opacity: enabled ? 1 : 0.55
             onClicked: root.editCalendarRequested(calendarRow.modelData)
           }
 

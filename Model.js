@@ -1158,13 +1158,20 @@ function calendarCreateArgs(form) {
   return args;
 }
 
+function pushClearableFlag(args, flag, values, key) {
+  // Chroncal only changes flags it received, so clearing description or
+  // owner email requires sending the flag with an empty value. Callers that
+  // omit the key (disconnect) must not wipe the stored fields.
+  if (key in values) args.push(flag, String(values[key] || ""));
+}
+
 function calendarUpdateArgs(form) {
   var values = form || {};
   var args = ["calendar", "update", String(values.id || "")];
   pushOptionalFlag(args, "--name", values.name);
   pushOptionalFlag(args, "--color", values.color);
-  pushOptionalFlag(args, "--description", values.description);
-  pushOptionalFlag(args, "--email", values.email);
+  pushClearableFlag(args, "--description", values, "description");
+  pushClearableFlag(args, "--email", values, "email");
   if (values.disconnectRemote === true) args.push("--disconnect-remote");
   args.push("--output", "json");
   return args;
