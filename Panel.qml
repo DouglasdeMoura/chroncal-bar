@@ -69,8 +69,10 @@ Panel {
     if (mutationKind === "account-credentials") return "Updating credentials…"
     if (mutationKind === "account-reauth") return "Waiting for Google authorization…"
     if (mutationKind === "sync-run") return "Syncing…"
+    if (mutationKind === "account-update") return "Renaming…"
+    if (mutationKind === "account-remove") return "Removing…"
     if (mutationKind === "account-get") return "Loading…"
-    return "Signing in…"
+    return "Working…"
   }
 
   function open() {
@@ -789,7 +791,13 @@ Panel {
       } else {
         actionStatus = setupActionStatus(completed)
         actionStatusTimer.restart()
-        if (completed === "account-update") mergeAccountRename()
+        if (completed === "account-update") {
+          mergeAccountRename()
+          // Close the rename form and re-seed its value so a second Save
+          // cannot silently revert to the pre-rename name.
+          accountDetails.closeSubforms()
+          accountDetails.nameValue = String((accountDetailsTarget || {}).display_name || "")
+        }
         if (completed === "account-credentials" || completed === "account-reauth") accountDetails.closeSubforms()
         refresh()
       }
@@ -1041,7 +1049,7 @@ Panel {
             PanelActionButton {
               visible: root.showingSubview
               iconText: "←"
-              tooltipText: root.showingEditor || root.showingCalendarEditor || root.showingAccountEditor
+              tooltipText: root.showingEditor || root.showingCalendarEditor || root.showingAccountEditor || root.showingAccountDetails
                 ? "Cancel and go back"
                 : "Back to agenda"
               foreground: root.contentForeground

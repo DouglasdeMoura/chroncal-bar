@@ -239,6 +239,12 @@ Flickable {
       width: parent.width
       text: root.mode === "rename" ? "Close rename" : "Rename"
       onClicked: {
+        // Seed the field from the account when opening; typing broke the
+        // text: binding, so the property alone cannot repopulate it.
+        if (root.mode !== "rename") {
+          root.nameValue = String(root.accountData.display_name || root.accountData.name || "")
+          renameField.text = root.nameValue
+        }
         root.mode = root.mode === "rename" ? "none" : "rename"
         root.submitAttempted = false
       }
