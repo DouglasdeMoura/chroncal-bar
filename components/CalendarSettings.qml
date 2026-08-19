@@ -336,7 +336,7 @@ Flickable {
               anchors.verticalCenter: parent.verticalCenter
               text: [String(syncStatusRow.modelData.calendar_name || ""),
                 "Last sync " + (String(syncStatusRow.modelData.last_sync_at || "") !== "" ? String(syncStatusRow.modelData.last_sync_at) : "Never")]
-                .concat(syncStatusRow.modelData.pending_push === true ? ["pending push"] : [])
+                .concat(Number(syncStatusRow.modelData.pending_push || 0) > 0 ? ["pending push"] : [])
                 .join(" · ")
               textFormat: Text.PlainText
               color: Util.alpha(root.foreground, 0.56)
@@ -437,7 +437,7 @@ Flickable {
                 focusable: true
                 foreground: root.foreground
                 fontFamily: root.fontFamily
-                enabled: !root.busy
+                enabled: !root.busy && !root.syncStateBusy
                 opacity: enabled ? 1 : 0.55
                 onClicked: root.resolveRequested(conflictRow.modelData, "local")
               }
@@ -448,7 +448,7 @@ Flickable {
                 focusable: true
                 foreground: root.foreground
                 fontFamily: root.fontFamily
-                enabled: !root.busy
+                enabled: !root.busy && !root.syncStateBusy
                 opacity: enabled ? 1 : 0.55
                 onClicked: root.resolveRequested(conflictRow.modelData, "server")
               }
