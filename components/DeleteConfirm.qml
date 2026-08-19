@@ -8,6 +8,7 @@ Item {
   property bool opened: false
   property bool recurring: false
   property string actionLabel: ""
+  property string question: ""
   property string title: "this event"
   property int selectedIndex: 0
   property color background: Color.background
@@ -75,7 +76,7 @@ Item {
 
         Text {
           width: parent.width
-          text: "Delete “" + String(root.title || "this event") + "”?"
+          text: root.question !== "" ? root.question : ("Delete “" + String(root.title || "this event") + "”?")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.title
