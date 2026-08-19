@@ -61,6 +61,8 @@ Flickable {
     mode = "none"
     nameValue = String(accountData.display_name || accountData.name || "")
     secretValue = ""
+    // Typing breaks the text: binding, so clear the field explicitly.
+    secretField.text = ""
     submitAttempted = false
     Qt.callLater(function() { root.forceActiveFocus() })
   }
@@ -68,6 +70,7 @@ Flickable {
   function closeSubforms() {
     mode = "none"
     secretValue = ""
+    secretField.text = ""
   }
 
   function submitAction(action) {
@@ -82,8 +85,12 @@ Flickable {
       form.token = authType === "bearer" ? secretValue : ""
     }
     submitted(form)
-    // The secret never stays on screen after spawn.
-    if (action === "credentials") secretValue = ""
+    // The secret never stays on screen after spawn; typing broke the
+    // text: binding, so the field is cleared explicitly too.
+    if (action === "credentials") {
+      secretValue = ""
+      secretField.text = ""
+    }
   }
 
   onVisibleChanged: if (visible) initialize()
@@ -283,6 +290,7 @@ Flickable {
 
       FieldLabel { text: root.authType === "bearer" ? "TOKEN" : "PASSWORD" }
       SecretField {
+        id: secretField
         text: root.secretValue
         placeholderText: root.authType === "bearer" ? "New bearer token" : "New password"
         onTextEdited: root.secretValue = text

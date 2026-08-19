@@ -63,10 +63,8 @@ Flickable {
     serverValue = ""
     usernameValue = ""
     authValue = "basic"
-    passwordValue = ""
-    tokenValue = ""
+    clearSecrets()
     clientIdValue = ""
-    clientSecretValue = ""
     allowInsecureChecked = false
     submitAttempted = false
     Qt.callLater(function() { nameField.forceActiveFocus() })
@@ -80,6 +78,11 @@ Flickable {
     passwordValue = ""
     tokenValue = ""
     clientSecretValue = ""
+    // Typing breaks the text: bindings, so the visible fields keep
+    // the secret unless they are cleared explicitly.
+    passwordField.text = ""
+    tokenField.text = ""
+    clientSecretField.text = ""
   }
 
   function submit() {
@@ -233,6 +236,7 @@ Flickable {
 
       FieldLabel { text: "PASSWORD" }
       SecretField {
+        id: passwordField
         text: root.passwordValue
         placeholderText: "Password or app password"
         onTextEdited: root.passwordValue = text
@@ -245,6 +249,7 @@ Flickable {
 
       FieldLabel { text: "TOKEN" }
       SecretField {
+        id: tokenField
         text: root.tokenValue
         placeholderText: "Bearer token"
         onTextEdited: root.tokenValue = text
@@ -265,6 +270,7 @@ Flickable {
 
       FieldLabel { text: "OAUTH CLIENT SECRET" }
       SecretField {
+        id: clientSecretField
         text: root.clientSecretValue
         placeholderText: "Client secret"
         onTextEdited: root.clientSecretValue = text
