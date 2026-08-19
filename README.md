@@ -38,17 +38,20 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Leaves stored override Repeat rules on the series; open the series editor to change them.
 - Deletes this event, this and following, or all events in a recurring series from the panel confirm.
 - Replies Yes, Maybe, or No from a Going control on event details when the calendar owner is an invited attendee.
-- Manages calendars from Settings: create, edit, hide, default, per-account grouping, and discovery of remote collections.
-- Adds CalDAV accounts (password, bearer token, Google OAuth) and imports iCal files without leaving the bar; secrets travel as process environment, never argv.
 - Offers Add account and New calendar from the empty agenda until a calendar exists.
+- Manages calendars from the Settings CALENDARS list: create, edit, hide, default, owner email, per-account grouping, and discovery of remote collections.
+- Adds CalDAV accounts (password, bearer token, Google OAuth) and imports iCal files without leaving the bar.
+- Syncs an account, resets one calendar's sync state, and resolves conflicts with Keep local or Keep server.
 - Included calendars only filter the bar; hidden calendars are removed from Chroncal and the agenda entirely.
+- Passes account secrets as process environment for that one Chroncal command; they never appear in argv, logs, or `shell.json`.
 
-This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sensitive time changes, alarms, availability, sync configuration details, and advanced calendar operations remain in Chroncal.
+This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sensitive time changes, alarms, availability, and the Chroncal service remain in Chroncal.
 
 ## Requirements
 
 - Omarchy Quattro
 - Chroncal 0.7.4 or newer on `PATH`
+- Chroncal with account setup CLI (local master until tagged) for in-plugin accounts, hide, credentials, reauth, and `sync run --account`
 - A Chroncal build that includes `chroncal event rsvp` for Yes/No/Maybe replies (not in 0.7.4)
 - A Chroncal build that includes `chroncal --event` to open the TUI on the selected event
 - `bash`, `jq`, GNU `date`, and GNU `timeout`
@@ -62,9 +65,9 @@ Install Chroncal with mise if needed:
 mise use -g github:DouglasdeMoura/chroncal@0.7.4
 ```
 
-That pin is enough for the rest of the bar. Yes/No/Maybe needs a Chroncal newer than 0.7.4, or a local build of `feat/event-rsvp-cli`.
+That pin is enough for the rest of the bar. Yes/No/Maybe needs a Chroncal newer than 0.7.4, or a local build of `feat/event-rsvp-cli`. In-plugin account and calendar setup needs Chroncal with account setup CLI (local master until tagged).
 
-Authenticate and configure calendars in the Chroncal TUI before expecting events on the bar:
+Add accounts and calendars from Settings, or from Add account and New calendar on an empty agenda. The Chroncal TUI remains available:
 
 ```sh
 chroncal
@@ -107,6 +110,7 @@ Search opens with `/`. Subviews share one header back arrow. Settings, shortcut 
 
 Open the agenda and press `C` or `,`, or click the settings cog in the header. Available settings:
 
+- CALENDARS manager: accounts grouped with nested calendars; Add account, New calendar, and Import iCal; Sync on each account; Hide, default, and owner email on a calendar; inspect, rename, credentials, reauth, and remove an account.
 - Days ahead (1–30) and refresh interval.
 - Maximum bar-title length and the relative-countdown window.
 - Included calendars; all are selected automatically until you customize the selection.
@@ -116,9 +120,9 @@ Open the agenda and press `C` or `,`, or click the settings cog in the header. A
 - Include or exclude events without a physical location or meeting link.
 - Show or hide the Open in Chroncal button on event details (off by default).
 
-Calendar selection has two states. Default mode selects every current calendar and automatically includes calendars added later. The first checkbox change stores an exact custom selection; selecting none hides every event. Use **Use default (all calendars)** to discard the custom selection and return to automatic default mode.
+Hide is a Chroncal calendar flag: hidden calendars leave Chroncal and the agenda. Included calendars are a bar-only filter. Calendar selection has two states. Default mode selects every current calendar and automatically includes calendars added later. The first checkbox change stores an exact custom selection; selecting none hides every event. Use **Use default (all calendars)** to discard the custom selection and return to automatic default mode.
 
-Settings persist on the widget entry in `~/.config/omarchy/shell.json`. They can also be changed from the command line:
+Widget settings persist on the widget entry in `~/.config/omarchy/shell.json`. They can also be changed from the command line:
 
 ```sh
 omarchy bar set douglasdemoura.chroncal-bar interval 60
@@ -127,6 +131,8 @@ omarchy bar set douglasdemoura.chroncal-bar showTitle On
 omarchy bar set douglasdemoura.chroncal-bar showOpenInChroncal On
 omarchy bar set douglasdemoura.chroncal-bar relativeLeadMinutes 10
 ```
+
+Account passwords, bearer tokens, and OAuth client secrets are never stored in `shell.json`.
 
 Force a refresh:
 
@@ -138,7 +144,7 @@ omarchy-shell douglasdemoura.chroncal-bar refresh
 
 The plugin runs inside Omarchy's long-running Quickshell process with your user permissions. Its QML timer starts a one-shot agenda helper at the configured interval; the helper emits one normalized JSON document and exits. The plugin does not start another Quickshell process, install packages, request elevated privileges, or run a remote installer.
 
-Chroncal remains the source of truth. The plugin calls its CLI to read calendar and event data and to perform explicitly requested create, update, and delete actions. Helpers also read `~/.local/state/chroncal/state.json` for hidden calendar IDs.
+Chroncal remains the source of truth. The plugin calls its CLI to read calendar and event data and to perform explicitly requested create, update, delete, account, and sync actions. Helpers also read `~/.local/state/chroncal/state.json` for hidden calendar IDs.
 
 Chroncal's optional `chroncal service run` process is separate. This plugin neither installs nor controls that service.
 
