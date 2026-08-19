@@ -1,0 +1,1 @@
+[{ "id": 9, "name": "work", "display_name": "Work CalDAV", "server_url": "https://cal.example.test/dav/", "auth_type": "basic", "username": "work@example.com" }]

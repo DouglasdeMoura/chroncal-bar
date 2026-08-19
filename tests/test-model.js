@@ -788,3 +788,51 @@ assert.deepEqual(
   ["account", "calendars", "set", "3", "--yes", "--calendar", "/cal/a/", "--output", "json"]
 );
 assert.deepEqual(model.accountCalendarsSetArgs({ id: 3, paths: ["  ", "\t"] }), []);
+
+// Task 12: discovery list args and settings calendar grouping
+
+assert.deepEqual(model.accountCalendarsListArgs({ id: 7 }), ["account", "calendars", "list", "7", "--output", "json"]);
+assert.deepEqual(model.accountCalendarsListArgs({}), ["account", "calendars", "list", "", "--output", "json"]);
+assert.deepEqual(model.accountCalendarsListArgs(null), ["account", "calendars", "list", "", "--output", "json"]);
+assert.deepEqual(model.accountCalendarsListArgs({ id: "12" }), ["account", "calendars", "list", "12", "--output", "json"]);
+
+const groupedAccounts = [
+  { id: 3, display_name: "Fastmail", name: "Fastmail", server_url: "https://caldav.fastmail.com/dav/", username: "a@example.com", auth_type: "basic" },
+  { id: 7, display_name: "Google", name: "Google", server_url: "https://apidata.googleusercontent.com/caldav", username: "", auth_type: "" }
+];
+const groupedCalendars = [
+  { id: 11, name: "Work", account_id: 3 },
+  { id: 12, name: "Home", account_id: "3" },
+  { id: 13, name: "G", account_id: 7 },
+  { id: 14, name: "Local", account_id: 0 },
+  { id: 15, name: "Zero string", account_id: "0" },
+  { id: 16, name: "Empty", account_id: "" },
+  { id: 17, name: "Null", account_id: null },
+  { id: 18, name: "Missing" },
+  { id: 19, name: "Orphan", account_id: 42, account_name: "Stale", remote_url: "https://old.example.com/dav/" }
+];
+const grouped = model.groupCalendars(groupedCalendars, groupedAccounts);
+assert.equal(grouped.length, 4);
+assert.deepEqual(grouped[0].account, groupedAccounts[0]);
+assert.deepEqual(grouped[0].calendars.map(c => c.name), ["Work", "Home"]);
+assert.deepEqual(grouped[1].account, groupedAccounts[1]);
+assert.deepEqual(grouped[1].calendars.map(c => c.name), ["G"]);
+// Zero-calendar accounts keep their section so Open stays reachable.
+assert.deepEqual(model.groupCalendars([], [{ id: 3, display_name: "Empty", name: "Empty", server_url: "", username: "", auth_type: "" }]), [
+  { account: { id: 3, display_name: "Empty", name: "Empty", server_url: "", username: "", auth_type: "" }, calendars: [] }
+]);
+// Unmatched account ids derive a section shaped like accountsFromCalendars.
+assert.deepEqual(grouped[2], {
+  account: { id: 42, display_name: "Stale", name: "Stale", server_url: "https://old.example.com/dav/", username: "", auth_type: "", calendar_count: 1 },
+  calendars: [{ id: 19, name: "Orphan", account_id: 42, account_name: "Stale", remote_url: "https://old.example.com/dav/" }]
+});
+assert.strictEqual(grouped[3].account, null);
+assert.deepEqual(grouped[3].calendars.map(c => c.name), ["Local", "Zero string", "Empty", "Null", "Missing"]);
+assert.deepEqual(model.groupCalendars([], groupedAccounts).map(s => s.account.id), [3, 7]);
+assert.deepEqual(model.groupCalendars([], []), []);
+assert.deepEqual(model.groupCalendars(null, null), []);
+assert.deepEqual(model.groupCalendars([{ id: 1, name: "Only local" }], []), [
+  { account: null, calendars: [{ id: 1, name: "Only local" }] }
+]);
+// Accounts with no calendars at all and no local calendars: no local section.
+assert.equal(model.groupCalendars([], [{ id: 5, display_name: "A", name: "A", server_url: "", username: "", auth_type: "" }]).length, 1);

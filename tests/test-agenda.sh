@@ -42,6 +42,7 @@ jq -e '
       and .last_sync_at == "2026-08-15T11:00:00Z"
       and .last_sync_error == "")
   and (.calendars[] | select(.id==2) | .hidden == true)
+  and (.calendars[] | select(.id==4) | .hidden == true)
   and (.calendars[] | select(.id==3)
       | .account_id == 0
       and .account_name == ""
@@ -49,11 +50,19 @@ jq -e '
       and .remote_access == ""
       and .last_sync_at == ""
       and .last_sync_error == "")
-  and (.calendars[] | select(.id==4) | .hidden == true)
+  and (.accounts | length) == 1
+  and (.accounts[0]
+      | .id == 9
+      and .name == "work"
+      and .display_name == "Work CalDAV"
+      and .server_url == "https://cal.example.test/dav/"
+      and .auth_type == "basic"
+      and .username == "work@example.com")
 ' <<<"$output" >/dev/null
 
 grep -Fx 'event list --from 2026-08-15 --to 2026-08-16 --output json' "$TMP/chroncal.log" >/dev/null
 grep -Fx 'calendar list --output json' "$TMP/chroncal.log" >/dev/null
+grep -Fx 'account list --output json' "$TMP/chroncal.log" >/dev/null
 
 bar_output=$("$ROOT/scripts/chroncal-next-event")
 jq -e '

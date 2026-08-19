@@ -51,6 +51,10 @@ if ! calendars=$(timeout 10 "$runner" calendar list --output json 2>/dev/null); 
   calendars='[]'
 fi
 
+if ! accounts=$(timeout 10 "$runner" account list --output json 2>/dev/null); then
+  accounts='[]'
+fi
+
 if [[ -f $chroncal_state ]]; then
   hidden_calendar_ids=$(jq -c '.hidden_calendars // []' "$chroncal_state" 2>/dev/null || printf '[]')
 else
@@ -64,7 +68,8 @@ if ! jq -cn \
   --argjson now "$now_epoch" \
   --argjson events "$events" \
   --argjson calendars "$calendars" \
-  --argjson hidden_calendar_ids "$hidden_calendar_ids" '
+  --argjson hidden_calendar_ids "$hidden_calendar_ids" \
+  --argjson accounts "$accounts" '
   def calendar_for($id):
     (first($calendars[]? | select(.id == $id)) // {});
   def calendar_hidden($calendar):
@@ -136,6 +141,17 @@ if ! jq -cn \
             remote_access: (.remote_access // ""),
             last_sync_at: (.last_sync_at // ""),
             last_sync_error: (.last_sync_error // "")
+          }
+      ],
+      accounts: [
+        $accounts[]?
+        | {
+            id: (.id // 0),
+            name: (.name // ""),
+            display_name: (.display_name // .name // "Account"),
+            server_url: (.server_url // ""),
+            auth_type: (.auth_type // ""),
+            username: (.username // "")
           }
       ],
       events: $visible_events,

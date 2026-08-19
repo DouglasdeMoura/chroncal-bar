@@ -1181,6 +1181,68 @@ function accountsFromCalendars(calendars) {
   return order;
 }
 
+function groupCalendars(calendars, accounts) {
+  // Settings list sections: one per known account (zero-calendar accounts
+  // included so Open stays reachable), then accounts derived from unmatched
+  // calendar ids (accounts fetch failed or stale), then locals.
+  var sections = [];
+  var byAccountId = {};
+  var accountList = accounts || [];
+  for (var a = 0; a < accountList.length; a += 1) {
+    var account = accountList[a] || {};
+    var section = { account: account, calendars: [] };
+    byAccountId[String(account.id)] = section;
+    sections.push(section);
+  }
+  var derived = [];
+  var derivedById = {};
+  var local = null;
+  var list = calendars || [];
+  for (var i = 0; i < list.length; i += 1) {
+    var calendar = list[i] || {};
+    var rawId = calendar.account_id;
+    if (rawId === undefined || rawId === null || rawId === 0 || rawId === "0" || String(rawId) === "") {
+      if (!local) local = { account: null, calendars: [] };
+      local.calendars.push(calendar);
+      continue;
+    }
+    var accountId = String(rawId);
+    var target = byAccountId[accountId];
+    if (target) {
+      target.calendars.push(calendar);
+      continue;
+    }
+    var derivedSection = derivedById[accountId];
+    if (!derivedSection) {
+      var label = String(calendar.account_name || "") || "Account";
+      derivedSection = {
+        account: {
+          id: rawId,
+          display_name: label,
+          name: label,
+          server_url: String(calendar.remote_url || ""),
+          username: "",
+          auth_type: "",
+          calendar_count: 1
+        },
+        calendars: []
+      };
+      derivedById[accountId] = derivedSection;
+      derived.push(derivedSection);
+    } else {
+      derivedSection.account.calendar_count += 1;
+    }
+    derivedSection.calendars.push(calendar);
+  }
+  for (var d = 0; d < derived.length; d += 1) sections.push(derived[d]);
+  if (local) sections.push(local);
+  return sections;
+}
+
+function accountCalendarsListArgs(account) {
+  return ["account", "calendars", "list", String((account || {}).id || ""), "--output", "json"];
+}
+
 function calendarCreateArgs(form) {
   var values = form || {};
   var args = ["calendar", "create"];
