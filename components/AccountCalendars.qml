@@ -18,7 +18,6 @@ Flickable {
 
   property var checkedPaths: []
   property string defaultValue: ""
-  property bool submitAttempted: false
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -56,7 +55,8 @@ Flickable {
     return false
   }
   readonly property bool canSubmit: !loading && !busy
-    && (!defaultNeedsPick || defaultValue !== "")
+    && !(rows.length === 0 && externalError !== "")
+    && (!defaultNeedsPick || checkedPaths.indexOf(defaultValue) !== -1)
 
   signal canceled()
   signal submitted(var values)
@@ -70,7 +70,6 @@ Flickable {
     }
     checkedPaths = paths
     defaultValue = ""
-    submitAttempted = false
   }
 
   function togglePath(path) {
@@ -78,8 +77,11 @@ Flickable {
     var key = String(path || "")
     var next = checkedPaths.slice()
     var index = next.indexOf(key)
-    if (index >= 0) next.splice(index, 1)
-    else next.push(key)
+    if (index >= 0) {
+      next.splice(index, 1)
+      // An unchecked calendar cannot stay the replacement default.
+      if (key === defaultValue) defaultValue = ""
+    } else next.push(key)
     checkedPaths = next
   }
 
@@ -92,7 +94,6 @@ Flickable {
   }
 
   function submit() {
-    submitAttempted = true
     if (!canSubmit) return
     submitted(values())
   }

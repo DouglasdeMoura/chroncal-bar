@@ -1149,9 +1149,9 @@ function validateAccountForm(form) {
 }
 
 function accountsFromCalendars(calendars) {
-  // Until the agenda adapter ships an `accounts[]` document, unique
-  // accounts are derived from the calendar list. Local calendars carry
-  // no usable account id (0, "0", null, or empty).
+  // Unique accounts derived from the calendar list, used when the agenda
+  // accounts[] document is missing or stale. Local calendars carry no
+  // usable account id (0, "0", null, or empty).
   var order = [];
   var byId = {};
   var list = calendars || [];
@@ -1214,19 +1214,7 @@ function groupCalendars(calendars, accounts) {
     }
     var derivedSection = derivedById[accountId];
     if (!derivedSection) {
-      var label = String(calendar.account_name || "") || "Account";
-      derivedSection = {
-        account: {
-          id: rawId,
-          display_name: label,
-          name: label,
-          server_url: String(calendar.remote_url || ""),
-          username: "",
-          auth_type: "",
-          calendar_count: 1
-        },
-        calendars: []
-      };
+      derivedSection = { account: accountsFromCalendars([calendar])[0], calendars: [] };
       derivedById[accountId] = derivedSection;
       derived.push(derivedSection);
     } else {
