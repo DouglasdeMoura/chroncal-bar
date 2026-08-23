@@ -95,6 +95,7 @@ Flickable {
             text: accountSection.modelData.account !== null
               ? String(accountSection.modelData.account.display_name || accountSection.modelData.account.name || "Account")
               : "On this computer"
+            textFormat: Text.PlainText
             color: Util.alpha(root.foreground, 0.52)
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
@@ -141,6 +142,7 @@ Flickable {
           width: parent.width
           text: [String(accountSection.modelData.account.username || ""), String(accountSection.modelData.account.auth_type || "")]
             .filter(function(part) { return part !== "" }).join(" · ")
+          textFormat: Text.PlainText
           color: Util.alpha(root.foreground, 0.52)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -208,6 +210,7 @@ Flickable {
                 anchors.rightMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
                 text: String(calendarRow.modelData.name || "")
+                textFormat: Text.PlainText
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body

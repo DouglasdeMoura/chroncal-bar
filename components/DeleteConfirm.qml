@@ -77,6 +77,7 @@ Item {
         Text {
           width: parent.width
           text: root.question !== "" ? root.question : ("Delete “" + String(root.title || "this event") + "”?")
+          textFormat: Text.PlainText
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.title
