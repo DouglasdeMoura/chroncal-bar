@@ -41,31 +41,61 @@ to_date=$(date -d "$from_date + $((days - 1)) days" +%F)
 state_dir=${XDG_STATE_HOME:-$HOME/.local/state}
 chroncal_state="$state_dir/chroncal/state.json"
 runner=${CHRONCAL_BIN:-$script_dir/chroncal-exec}
+events_cap=$((8 * 1024 * 1024))
+calendars_cap=$((256 * 1024))
+state_cap=$((1024 * 1024))
 
-if ! events=$(timeout 10 "$runner" event list --from "$from_date" --to "$to_date" --output json 2>/dev/null); then
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/chroncal-bar-agenda.XXXXXX") || {
+  unavailable
+  exit 0
+}
+trap 'rm -rf "$work_dir"' EXIT
+
+# Producer-side byte ceilings: a large or compromised backend response is
+# treated as unavailable instead of being buffered whole into shell variables.
+if ! timeout 10 "$runner" event list --from "$from_date" --to "$to_date" --output json 2>/dev/null \
+  | head -c "$events_cap" > "$work_dir/events.json"; then
   unavailable
   exit 0
 fi
 
-if ! calendars=$(timeout 10 "$runner" calendar list --output json 2>/dev/null); then
-  calendars='[]'
+if ! timeout 10 "$runner" calendar list --output json 2>/dev/null \
+  | head -c "$calendars_cap" > "$work_dir/calendars.json"; then
+  printf '[]\n' > "$work_dir/calendars.json"
 fi
-
-if [[ -f $chroncal_state ]]; then
-  hidden_calendar_ids=$(jq -c '.hidden_calendars // []' "$chroncal_state" 2>/dev/null || printf '[]')
-else
-  hidden_calendar_ids='[]'
+printf '[]\n' > "$work_dir/hidden.json"
+if [[ -f $chroncal_state && ! -L $chroncal_state ]]; then
+  state_fd=""
+  if exec {state_fd}<"$chroncal_state" 2>/dev/null; then
+    # Descriptor-bound no-follow read: verify the opened inode is a regular
+    # file at the expected path, then read a capped amount from that
+    # descriptor so later path swaps (symlink/FIFO/oversized replacement)
+    # cannot redirect or exhaust this shell.
+    state_expected=$(realpath -m -- "$chroncal_state")
+    state_opened=$(readlink "/proc/$$/fd/$state_fd" 2>/dev/null)
+    state_kind=$(stat -Lc '%F' "/proc/$$/fd/$state_fd" 2>/dev/null)
+    if [[ $state_opened == "$state_expected" && $state_kind == 'regular file' ]]; then
+      head -c "$state_cap" <&"$state_fd" > "$work_dir/state.json"
+      jq -c '.hidden_calendars // []' "$work_dir/state.json" > "$work_dir/hidden.json" 2>/dev/null \
+        || printf '[]\n' > "$work_dir/hidden.json"
+    fi
+    exec {state_fd}<&-
+  fi
 fi
+unset state_fd state_expected state_opened state_kind
 
 if ! jq -cn \
   --arg generated_at "$generated_at" \
   --arg from "$from_date" \
   --arg to "$to_date" \
   --argjson now "$now_epoch" \
-  --argjson events "$events" \
-  --argjson calendars "$calendars" \
-  --argjson hidden_calendar_ids "$hidden_calendar_ids" '
-  def calendar_for($id):
+  --slurpfile events "$work_dir/events.json" \
+  --slurpfile calendars "$work_dir/calendars.json" \
+  --slurpfile hidden_calendar_ids "$work_dir/hidden.json" '
+  ($events[0] // []) as $events
+  | ($calendars[0] // []) as $calendars
+  | ($hidden_calendar_ids[0] // []) as $hidden_calendar_ids
+  | def calendar_for($id):
     (first($calendars[]? | select(.id == $id)) // {});
   def fallback_color($value):
     if ($value // "") == "" then "#888888" else $value end;

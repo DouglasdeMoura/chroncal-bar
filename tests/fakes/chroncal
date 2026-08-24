@@ -10,7 +10,12 @@ if [[ ${CHRONCAL_FAKE_FAIL:-0} == 1 ]]; then
 fi
 
 case "${1:-} ${2:-}" in
-  "event list") cat "$fixtures/events.json" ;;
+  "event list")
+    if [[ ${CHRONCAL_FAKE_HUGE:-0} == 1 ]]; then
+      head -c 9000000 /dev/zero | tr '\0' 'a'
+      exit 0
+    fi
+    cat "$fixtures/events.json" ;;
   "calendar list") cat "$fixtures/calendars.json" ;;
   *) printf 'unexpected fake chroncal command: %s\n' "$*" >&2; exit 64 ;;
 esac

@@ -1,19 +1,44 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Resolves and runs the chroncal CLI with producer-side byte ceilings on
+# stdout/stderr, so a large or compromised backend response cannot exhaust
+# the long-lived Quickshell StdioCollector memory or downstream shell sinks.
+# Exit status propagates; an oversized stdout stream dies via SIGPIPE and is
+# therefore reported as a failure rather than silently truncated success.
+set -uo pipefail
 
+stdout_cap=8388608
+stderr_cap=262144
+
+child=""
 if [[ -n ${CHRONCAL_BIN:-} ]]; then
-  exec "$CHRONCAL_BIN" "$@"
-fi
-
-if command -v mise >/dev/null 2>&1; then
-  if chroncal_path=$(mise which chroncal 2>/dev/null); then
-    exec "$chroncal_path" "$@"
+  child=$CHRONCAL_BIN
+else
+  resolved=""
+  if command -v mise >/dev/null 2>&1; then
+    resolved=$(mise which chroncal 2>/dev/null) || resolved=""
   fi
+  if [[ -z $resolved ]]; then
+    resolved=$(command -v chroncal 2>/dev/null) || resolved=""
+  fi
+  if [[ -z $resolved ]]; then
+    printf 'chroncal executable not found\n' >&2
+    exit 127
+  fi
+  child=$resolved
 fi
 
-if command -v chroncal >/dev/null 2>&1; then
-  exec chroncal "$@"
+err_tmp=$(mktemp "${TMPDIR:-/tmp}/chroncal-exec.XXXXXX") || exit 70
+trap 'rm -f "$err_tmp"' EXIT
+
+status=0
+"$child" "$@" 2>"$err_tmp" | head -c "$stdout_cap" || status=$?
+
+stderr_size=$(stat -c %s "$err_tmp" 2>/dev/null) || stderr_size=0
+if (( stderr_size > stderr_cap )); then
+  head -c "$stderr_cap" "$err_tmp" >&2
+  printf '[chroncal-exec: stderr truncated at %s bytes]\n' "$stderr_cap" >&2
+else
+  cat "$err_tmp" >&2
 fi
 
-printf 'chroncal executable not found\n' >&2
-exit 127
+exit "$status"

@@ -48,4 +48,45 @@ jq -e '
 
 CHRONCAL_FAKE_FAIL=1 "$ROOT/scripts/chroncal-bar-agenda" --days 2   | jq -e '.status == "unavailable" and .events == [] and .next == null' >/dev/null
 
-printf 'agenda adapter tests: ok\n'
+# An oversized backend response is rejected as unavailable, never buffered whole.
+CHRONCAL_FAKE_HUGE=1 timeout 30 "$ROOT/scripts/chroncal-bar-agenda" --days 2 \
+  | jq -e '.status == "unavailable" and .events == []' >/dev/null
+
+# A symlinked state path is never followed, even to a readable file.
+printf '{"hidden_calendars":[7]}\n' > "$TMP/evil-state.json"
+rm -f "$TMP/state/chroncal/state.json"
+ln -s "$TMP/evil-state.json" "$TMP/state/chroncal/state.json"
+output=$("$ROOT/scripts/chroncal-bar-agenda" --days 2)
+jq -e '.status == "ok" and (.calendars | map(select(.hidden == true).id)) == []' <<<"$output" >/dev/null
+rm "$TMP/state/chroncal/state.json"
+
+# A FIFO at the state path cannot block the read.
+mkfifo "$TMP/state/chroncal/state.json"
+output=$(timeout 20 "$ROOT/scripts/chroncal-bar-agenda" --days 2)
+jq -e '.status == "ok"' <<<"$output" >/dev/null
+rm "$TMP/state/chroncal/state.json"
+
+# An oversized state replacement is read through a bounded descriptor.
+{ printf '{"hidden_calendars":[2],"pad":"'; head -c 2097152 /dev/zero | tr '\0' 'a'; } \
+  > "$TMP/state/chroncal/state.json"
+output=$("$ROOT/scripts/chroncal-bar-agenda" --days 2)
+jq -e '.status == "ok" and (.calendars | map(select(.hidden == true).id)) == []' <<<"$output" >/dev/null
+
+# chroncal-exec enforces the producer-side stdout ceiling and reports failure.
+if CHRONCAL_BIN="$ROOT/tests/fakes/chroncal" CHRONCAL_FAKE_HUGE=1 \
+    timeout 30 "$ROOT/scripts/chroncal-exec" event list --output json \
+    > "$TMP/exec-out.json"; then
+  echo 'chroncal-exec accepted oversized output' >&2
+  exit 1
+fi
+exec_bytes=$(wc -c < "$TMP/exec-out.json")
+(( exec_bytes > 0 && exec_bytes <= 8 * 1024 * 1024 )) || {
+  echo 'chroncal-exec stdout cap violated' >&2
+  exit 1
+}
+
+# Normal passthrough through chroncal-exec still succeeds.
+CHRONCAL_BIN="$ROOT/tests/fakes/chroncal" "$ROOT/scripts/chroncal-exec" calendar list --output json \
+  | jq -e 'length >= 0' >/dev/null
+ 
+ printf 'agenda adapter tests: ok\n'
