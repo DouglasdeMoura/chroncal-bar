@@ -11,16 +11,10 @@ ln -s "$ROOT/tests/fakes/chroncal" "$TMP/bin/chroncal"
 cp "$FIXTURES/calendars.json" "$TMP/fixtures/calendars.json"
 start_time=$(date -u -d "+1 hour" +%Y-%m-%dT%H:%M:%SZ)
 end_time=$(date -u -d "+2 hours" +%Y-%m-%dT%H:%M:%SZ)
-jq --arg start_time "$start_time" --arg end_time "$end_time" '
-  map(select(.uid == "standup")
-    | .start_time = $start_time
-    | .end_time = $end_time
-    | .conference_uri = "zoommtg://zoom.us/join?confno=123")
-' "$FIXTURES/events.json" >"$TMP/fixtures/events.json"
 cp "$FIXTURES/state/chroncal/state.json" "$TMP/state/chroncal/state.json"
 cat >"$TMP/bin/xdg-open" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' "$1" >"$CHRONCAL_OPEN_LOG"
+printf '%s\n' "$1" >>"$CHRONCAL_OPEN_LOG"
 EOF
 cat >"$TMP/bin/notify-send" <<'EOF'
 #!/usr/bin/env bash
@@ -33,12 +27,36 @@ export XDG_STATE_HOME="$TMP/state"
 export CHRONCAL_FAKE_FIXTURES="$TMP/fixtures"
 export CHRONCAL_FAKE_LOG="$TMP/chroncal.log"
 export CHRONCAL_OPEN_LOG="$TMP/open.log"
+: >"$CHRONCAL_OPEN_LOG"
+
+# A web link is opened.
+jq --arg start_time "$start_time" --arg end_time "$end_time" '
+  map(select(.uid == "standup")
+    | .start_time = $start_time
+    | .end_time = $end_time
+    | .conference_uri = "https://meet.example.test/standup")
+' "$FIXTURES/events.json" >"$TMP/fixtures/events.json"
 
 "$ROOT/scripts/chroncal-open-next-event-url"
 for _ in $(seq 1 50); do
-  [[ -f "$CHRONCAL_OPEN_LOG" ]] && break
+  grep -qx 'https://meet.example.test/standup' "$CHRONCAL_OPEN_LOG" && break
   sleep 0.02
 done
+grep -qx 'https://meet.example.test/standup' "$CHRONCAL_OPEN_LOG"
 
-test "$(cat "$CHRONCAL_OPEN_LOG")" = "zoommtg://zoom.us/join?confno=123"
+# A non-web scheme is refused and never reaches xdg-open.
+jq --arg start_time "$start_time" --arg end_time "$end_time" '
+  map(select(.uid == "standup")
+    | .start_time = $start_time
+    | .end_time = $end_time
+    | .conference_uri = "zoommtg://zoom.us/join?confno=123")
+' "$FIXTURES/events.json" >"$TMP/fixtures/events.json"
+
+"$ROOT/scripts/chroncal-open-next-event-url"
+sleep 0.5
+if grep -q 'zoommtg://' "$CHRONCAL_OPEN_LOG"; then
+  echo 'non-web URL was opened' >&2
+  exit 1
+fi
+
 printf 'next event URL tests: ok\n'

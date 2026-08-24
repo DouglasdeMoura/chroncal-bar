@@ -99,4 +99,9 @@ if [[ -z "$url" || "$url" == "null" ]]; then
   exit 0
 fi
 
+if [[ ! $url =~ ^https?:// ]]; then
+  notify-send -u low "chroncal" "Refused non-web link for the next event"
+  exit 0
+fi
+
 xdg-open "$url" >/dev/null 2>&1 &

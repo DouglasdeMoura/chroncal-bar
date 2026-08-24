@@ -1059,6 +1059,7 @@ function rewriteOpenUrl(url, event) {
 function eventOpenUrl(event) {
   if (!event) return "";
   var url = String(event.conference_url || event.url || firstUrlInText(event.location) || firstUrlInText(event.description) || "");
+  if (!/^https?:\/\//i.test(url)) return "";
   return rewriteOpenUrl(url, event);
 }
 
