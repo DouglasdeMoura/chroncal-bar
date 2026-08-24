@@ -1,26 +1,63 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
+
+events_cap=$((8 * 1024 * 1024))
+calendars_cap=$((256 * 1024))
+state_cap=$((1024 * 1024))
+
+unavailable() {
+  notify-send -u low "chroncal" "${1:-chroncal unavailable}" 2>/dev/null || :
+  exit 0
+}
+
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/chroncal-open-url.XXXXXX") || unavailable
+trap 'rm -rf "$work_dir"' EXIT
 
 today=$(date +%F)
 now=$(date +%s)
 state_dir=${XDG_STATE_HOME:-$HOME/.local/state}
 state_file="$state_dir/chroncal/state.json"
 
-events=$(chroncal event list --from "$today" --to "$today" --output json 2>/dev/null)
-
-if ! calendars=$(chroncal calendar list --output json 2>/dev/null); then
-  calendars='[]'
+# Producer-side byte ceilings: a large or compromised backend response is
+# never buffered whole into this shell.
+if ! timeout 10 chroncal event list --from "$today" --to "$today" --output json 2>/dev/null \
+  | head -c "$events_cap" > "$work_dir/events.json"; then
+  unavailable
 fi
 
-if [[ -f "$state_file" ]]; then
-  hidden_calendar_ids=$(jq -c '.hidden_calendars // []' "$state_file" 2>/dev/null || printf '[]')
-else
-  hidden_calendar_ids='[]'
+if ! timeout 10 chroncal calendar list --output json 2>/dev/null \
+  | head -c "$calendars_cap" > "$work_dir/calendars.json"; then
+  printf '[]\n' > "$work_dir/calendars.json"
 fi
 
-url=$(jq -r --argjson now "$now" --argjson hidden_calendar_ids "$hidden_calendar_ids" --argjson calendars "$calendars" '
-  def is_visible($event):
-    ($hidden_calendar_ids | index($event.calendar_id)) == null;
+printf '[]\n' > "$work_dir/hidden.json"
+if [[ -f $state_file && ! -L $state_file ]]; then
+  state_fd=""
+  if exec {state_fd}<"$state_file" 2>/dev/null; then
+    # Descriptor-bound no-follow read: verify the opened inode is a regular
+    # file at the expected path, then read a capped amount from that
+    # descriptor so later path swaps (symlink/FIFO/oversized replacement)
+    # cannot redirect or exhaust this shell.
+    state_expected=$(realpath -m -- "$state_file")
+    state_opened=$(readlink "/proc/$$/fd/$state_fd" 2>/dev/null)
+    state_kind=$(stat -Lc '%F' "/proc/$$/fd/$state_fd" 2>/dev/null)
+    if [[ $state_opened == "$state_expected" && $state_kind == 'regular file' ]]; then
+      head -c "$state_cap" <&"$state_fd" > "$work_dir/state.json"
+      jq -c '.hidden_calendars // []' "$work_dir/state.json" > "$work_dir/hidden.json" 2>/dev/null \
+        || printf '[]\n' > "$work_dir/hidden.json"
+    fi
+    exec {state_fd}<&-
+  fi
+fi
+unset state_fd state_expected state_opened state_kind
+
+url=$(jq -r --argjson now "$now" \
+  --slurpfile calendars "$work_dir/calendars.json" \
+  --slurpfile hidden_calendar_ids "$work_dir/hidden.json" '
+  ($calendars[0] // []) as $calendars
+  | ($hidden_calendar_ids[0] // []) as $hidden_calendar_ids
+  | def is_visible($event):
+      ($hidden_calendar_ids | index($event.calendar_id)) == null;
   def first_url($s):
     (($s // "") | match("https?://[^[:space:]<>\"]+")?.string // "");
   def calendar_owner_email($id):
@@ -55,7 +92,7 @@ url=$(jq -r --argjson now "$now" --argjson hidden_calendar_ids "$hidden_calendar
   | sort_by(.start_time | fromdateiso8601)
   | .[0] as $event
   | if $event == null then "" else event_url($event) end
-' <<<"$events")
+' <"$work_dir/events.json")
 
 if [[ -z "$url" || "$url" == "null" ]]; then
   notify-send -u low "chroncal" "No link for the next event"
