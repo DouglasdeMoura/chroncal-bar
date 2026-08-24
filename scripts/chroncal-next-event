@@ -31,7 +31,7 @@ render() {
     def html($s): "<span>" + $s + "</span>";
     def hm: fromdateiso8601 | strflocaltime("%H:%M");
     def color_block($event):
-      "<font color=\"\($event.calendar_color // "#888888")\">■</font>";
+      "<font color=\"\(($event.calendar_color // "#888888") | esc)\">■</font>";
     def event_line($event):
       if $event.all_day then
         "\(color_block($event))  All day · \($event.title | esc)"

@@ -46,6 +46,18 @@ jq -e '
   and (.tooltip | contains("Personal"))
 ' <<<"$bar_output" >/dev/null
 
+# A compromised calendar color cannot break out of the pango font attribute.
+mkdir -p "$TMP/fixtures-evil"
+cp "$FIXTURES/events.json" "$TMP/fixtures-evil/events.json"
+jq 'map(.color = "#888\"><script>alert(1)</script>")' "$FIXTURES/calendars.json" \
+  > "$TMP/fixtures-evil/calendars.json"
+evil_output=$(CHRONCAL_FAKE_FIXTURES="$TMP/fixtures-evil" "$ROOT/scripts/chroncal-next-event")
+if grep -q '<script>' <<<"$evil_output"; then
+  echo 'calendar color injected unescaped markup' >&2
+  exit 1
+fi
+grep -q '&lt;script&gt;' <<<"$evil_output"
+
 CHRONCAL_FAKE_FAIL=1 "$ROOT/scripts/chroncal-bar-agenda" --days 2   | jq -e '.status == "unavailable" and .events == [] and .next == null' >/dev/null
 
 # An oversized backend response is rejected as unavailable, never buffered whole.
