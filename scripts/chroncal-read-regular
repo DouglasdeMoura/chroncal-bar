@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Copy at most BYTE_CAP bytes from PATH after opening it with
+# O_RDONLY|O_NOFOLLOW|O_NONBLOCK and confirming the opened inode is a
+# regular file. Symlinks, FIFOs, directories, and missing paths fail
+# without blocking or following.
+set -euo pipefail
+
+if (( $# != 2 )); then
+  printf 'usage: chroncal-read-regular PATH BYTE_CAP\n' >&2
+  exit 64
+fi
+
+path=$1
+cap=$2
+[[ $cap =~ ^[0-9]+$ ]] || {
+  printf 'BYTE_CAP must be a non-negative integer\n' >&2
+  exit 64
+}
+
+exec python3 - "$path" "$cap" <<'PY'
+import fcntl
+import os
+import stat
+import sys
+
+path = sys.argv[1]
+cap = int(sys.argv[2])
+flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+try:
+    fd = os.open(path, flags)
+except OSError:
+    sys.exit(1)
+
+try:
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        sys.exit(1)
+    fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+    fcntl.fcntl(fd, fcntl.F_SETFL, fl & ~os.O_NONBLOCK)
+    remaining = cap
+    out = sys.stdout.buffer
+    while remaining > 0:
+        chunk = os.read(fd, min(65536, remaining))
+        if not chunk:
+            break
+        out.write(chunk)
+        remaining -= len(chunk)
+finally:
+    os.close(fd)
+PY

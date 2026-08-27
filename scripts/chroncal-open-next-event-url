@@ -10,6 +10,7 @@ unavailable() {
   exit 0
 }
 
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/chroncal-open-url.XXXXXX") || unavailable
 trap 'rm -rf "$work_dir"' EXIT
 
@@ -31,25 +32,13 @@ if ! timeout 10 chroncal calendar list --output json 2>/dev/null \
 fi
 
 printf '[]\n' > "$work_dir/hidden.json"
-if [[ -f $state_file && ! -L $state_file ]]; then
-  state_fd=""
-  if exec {state_fd}<"$state_file" 2>/dev/null; then
-    # Descriptor-bound no-follow read: verify the opened inode is a regular
-    # file at the expected path, then read a capped amount from that
-    # descriptor so later path swaps (symlink/FIFO/oversized replacement)
-    # cannot redirect or exhaust this shell.
-    state_expected=$(realpath -m -- "$state_file")
-    state_opened=$(readlink "/proc/$$/fd/$state_fd" 2>/dev/null)
-    state_kind=$(stat -Lc '%F' "/proc/$$/fd/$state_fd" 2>/dev/null)
-    if [[ $state_opened == "$state_expected" && $state_kind == 'regular file' ]]; then
-      head -c "$state_cap" <&"$state_fd" > "$work_dir/state.json"
-      jq -c '.hidden_calendars // []' "$work_dir/state.json" > "$work_dir/hidden.json" 2>/dev/null \
-        || printf '[]\n' > "$work_dir/hidden.json"
-    fi
-    exec {state_fd}<&-
-  fi
+# Open with O_NOFOLLOW|O_NONBLOCK, then fstat the descriptor: a FIFO or
+# symlink replacement cannot block this shell or redirect the read.
+if "$script_dir/chroncal-read-regular" "$state_file" "$state_cap" \
+    >"$work_dir/state.json" 2>/dev/null; then
+  jq -c '.hidden_calendars // []' "$work_dir/state.json" > "$work_dir/hidden.json" 2>/dev/null \
+    || printf '[]\n' > "$work_dir/hidden.json"
 fi
-unset state_fd state_expected state_opened state_kind
 
 url=$(jq -r --argjson now "$now" \
   --slurpfile calendars "$work_dir/calendars.json" \

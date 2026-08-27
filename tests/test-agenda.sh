@@ -72,10 +72,15 @@ output=$("$ROOT/scripts/chroncal-bar-agenda" --days 2)
 jq -e '.status == "ok" and (.calendars | map(select(.hidden == true).id)) == []' <<<"$output" >/dev/null
 rm "$TMP/state/chroncal/state.json"
 
-# A FIFO at the state path cannot block the read.
+# A FIFO at the state path cannot block the read or inject hidden IDs.
 mkfifo "$TMP/state/chroncal/state.json"
-output=$(timeout 20 "$ROOT/scripts/chroncal-bar-agenda" --days 2)
-jq -e '.status == "ok"' <<<"$output" >/dev/null
+printf '{"hidden_calendars":[1]}\n' >"$TMP/state/chroncal/state.json" &
+fifo_writer=$!
+output=$(timeout 3 "$ROOT/scripts/chroncal-bar-agenda" --days 2)
+kill "$fifo_writer" 2>/dev/null || true
+wait "$fifo_writer" 2>/dev/null || true
+jq -e '.status == "ok" and (.calendars | map(select(.hidden == true).id)) == []' \
+  <<<"$output" >/dev/null
 rm "$TMP/state/chroncal/state.json"
 
 # An oversized state replacement is read through a bounded descriptor.

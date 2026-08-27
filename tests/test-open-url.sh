@@ -59,4 +59,50 @@ if grep -q 'zoommtg://' "$CHRONCAL_OPEN_LOG"; then
   exit 1
 fi
 
+jq --arg start_time "$start_time" --arg end_time "$end_time" '
+  map(select(.uid == "standup")
+    | .start_time = $start_time
+    | .end_time = $end_time
+    | .conference_uri = "https://meet.example.test/standup")
+' "$FIXTURES/events.json" >"$TMP/fixtures/events.json"
+: >"$CHRONCAL_OPEN_LOG"
+
+# A symlinked state path is never followed, even to a readable file.
+printf '{"hidden_calendars":[1]}\n' >"$TMP/evil-state.json"
+rm -f "$TMP/state/chroncal/state.json"
+ln -s "$TMP/evil-state.json" "$TMP/state/chroncal/state.json"
+"$ROOT/scripts/chroncal-open-next-event-url"
+for _ in $(seq 1 50); do
+  grep -qx 'https://meet.example.test/standup' "$CHRONCAL_OPEN_LOG" && break
+  sleep 0.02
+done
+grep -qx 'https://meet.example.test/standup' "$CHRONCAL_OPEN_LOG"
+rm "$TMP/state/chroncal/state.json"
+: >"$CHRONCAL_OPEN_LOG"
+
+# A FIFO at the state path cannot block the read or hide the next event.
+mkfifo "$TMP/state/chroncal/state.json"
+printf '{"hidden_calendars":[1]}\n' >"$TMP/state/chroncal/state.json" &
+fifo_writer=$!
+timeout 3 "$ROOT/scripts/chroncal-open-next-event-url"
+kill "$fifo_writer" 2>/dev/null || true
+wait "$fifo_writer" 2>/dev/null || true
+for _ in $(seq 1 50); do
+  grep -qx 'https://meet.example.test/standup' "$CHRONCAL_OPEN_LOG" && break
+  sleep 0.02
+done
+grep -qx 'https://meet.example.test/standup' "$CHRONCAL_OPEN_LOG"
+rm "$TMP/state/chroncal/state.json"
+: >"$CHRONCAL_OPEN_LOG"
+
+# An oversized state replacement is read through a bounded descriptor.
+{ printf '{"hidden_calendars":[1],"pad":"'; head -c 2097152 /dev/zero | tr '\0' 'a'; } \
+  >"$TMP/state/chroncal/state.json"
+"$ROOT/scripts/chroncal-open-next-event-url"
+for _ in $(seq 1 50); do
+  grep -qx 'https://meet.example.test/standup' "$CHRONCAL_OPEN_LOG" && break
+  sleep 0.02
+done
+grep -qx 'https://meet.example.test/standup' "$CHRONCAL_OPEN_LOG"
+
 printf 'next event URL tests: ok\n'
