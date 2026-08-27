@@ -64,8 +64,8 @@ if ! timeout 10 "$runner" calendar list --output json 2>/dev/null \
   printf '[]\n' > "$work_dir/calendars.json"
 fi
 printf '[]\n' > "$work_dir/hidden.json"
-# Open with O_NOFOLLOW|O_NONBLOCK, then fstat the descriptor: a FIFO or
-# symlink replacement cannot block this shell or redirect the read.
+# GNU dd opens with O_NOFOLLOW|O_NONBLOCK, then we refuse a non-regular
+# path: a FIFO or symlink replacement cannot block or redirect the read.
 if "$script_dir/chroncal-read-regular" "$chroncal_state" "$state_cap" \
     >"$work_dir/state.json" 2>/dev/null; then
   jq -c '.hidden_calendars // []' "$work_dir/state.json" > "$work_dir/hidden.json" 2>/dev/null \
