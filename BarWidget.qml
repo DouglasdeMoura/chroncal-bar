@@ -194,6 +194,9 @@ BarWidget {
     labelVisible: root.displayHtml === ""
     tooltipText: ""
     active: false
+    // The stock press feedback shrinks the label to 90%. That suits a glyph,
+    // but a full sentence jumps by ~20px with pixel-snapped text.
+    pressFeedbackButtons: Qt.NoButton
     horizontalMargin: Number(root.setting("horizontalMargin", 7.5))
     fontSize: Number(root.setting("fontSize", 12))
     onPressed: function(buttonCode) {
@@ -216,7 +219,6 @@ BarWidget {
       font.family: button.fontFamily
       font.pixelSize: button.fontSize
       renderType: Text.NativeRendering
-      scale: button.pressScale
       horizontalAlignment: Text.AlignHCenter
       verticalAlignment: Text.AlignVCenter
     }
