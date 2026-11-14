@@ -19,6 +19,9 @@ Flickable {
   property string showEventsWithoutParticipants: "On"
   property string showEventsWithoutLocation: "On"
   property string showOpenInChroncal: "Off"
+  property string showDeclinedEvents: "On"
+  property int barHorizonHours: 0
+  property int joinReminderMinutes: -1
 
   signal configurationChanged(var values)
 
@@ -113,6 +116,18 @@ Flickable {
 
     NumberField {
       width: parent.width
+      label: "Only show events starting within (hours, 0 = any)"
+      value: root.barHorizonHours
+      from: 0
+      to: 168
+      stepSize: 1
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onModified: function(value) { root.configurationChanged({ barHorizonHours: value }) }
+    }
+
+    NumberField {
+      width: parent.width
       label: "Relative countdown window (minutes)"
       value: root.relativeLeadMinutes
       from: 0
@@ -165,12 +180,55 @@ Flickable {
 
     Toggle {
       width: parent.width
+      label: "Declined events"
+      description: "Shown dimmed in the agenda; never on the bar"
+      checked: root.showDeclinedEvents !== "Off"
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onClicked: root.configurationChanged({ showDeclinedEvents: root.showDeclinedEvents === "Off" ? "On" : "Off" })
+    }
+
+    Toggle {
+      width: parent.width
       label: "Events without location"
       description: "Includes physical locations and meeting links"
       checked: root.showEventsWithoutLocation !== "Off"
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.configurationChanged({ showEventsWithoutLocation: root.showEventsWithoutLocation === "Off" ? "On" : "Off" })
+    }
+
+    Text {
+      topPadding: Style.space(6)
+      text: "NOTIFICATIONS"
+      color: Util.alpha(root.foreground, 0.52)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      font.bold: true
+      font.letterSpacing: 1
+    }
+
+    Toggle {
+      width: parent.width
+      label: "Meeting alerts with Join"
+      description: "Notifies before each timed event; Chroncal alarms may also fire"
+      checked: root.joinReminderMinutes >= 0
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onClicked: root.configurationChanged({ joinReminderMinutes: root.joinReminderMinutes >= 0 ? -1 : 1 })
+    }
+
+    NumberField {
+      visible: root.joinReminderMinutes >= 0
+      width: parent.width
+      label: "Minutes before start"
+      value: Math.max(0, root.joinReminderMinutes)
+      from: 0
+      to: 60
+      stepSize: 1
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onModified: function(value) { root.configurationChanged({ joinReminderMinutes: value }) }
     }
 
     Text {

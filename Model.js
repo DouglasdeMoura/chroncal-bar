@@ -7,6 +7,48 @@ function parseDate(value) {
   return isNaN(date.getTime()) ? null : date;
 }
 
+// All-day events are floating dates: Chroncal stores them as
+// "YYYY-MM-DDT00:00:00Z", but the date part is the calendar day everywhere.
+// Parsing that as a UTC instant shifts the day west of Greenwich.
+function localDateFromKey(value) {
+  var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ""));
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function eventStartDate(event) {
+  if (!event) return null;
+  if (event.all_day === true) return localDateFromKey(event.start_time) || parseDate(event.start_time);
+  return parseDate(event.start_time);
+}
+
+function eventEndDate(event) {
+  if (!event) return null;
+  if (event.all_day === true) {
+    var end = localDateFromKey(event.end_time);
+    var start = eventStartDate(event);
+    if (end && (!start || end > start)) return end;
+    return start ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1) : null;
+  }
+  return parseDate(event.end_time) || parseDate(event.start_time);
+}
+
+function eventHasEnded(event, now) {
+  var end = eventEndDate(event);
+  return end !== null && end.getTime() <= now.getTime();
+}
+
+function eventIsOngoing(event, now) {
+  var start = eventStartDate(event);
+  var end = eventEndDate(event);
+  return start !== null && end !== null && start.getTime() <= now.getTime() && end.getTime() > now.getTime();
+}
+
+function activeEvents(events, nowValue) {
+  var now = parseDate(nowValue) || new Date();
+  return (events || []).filter(function(event) { return !eventHasEnded(event, now); });
+}
+
 function dateKey(date) {
   return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
 }
@@ -34,39 +76,64 @@ function dayLabel(date, now) {
 
 function eventSort(left, right) {
   if (left.all_day !== right.all_day) return left.all_day ? -1 : 1;
-  return String(left.start_time).localeCompare(String(right.start_time));
+  var leftStart = eventStartDate(left);
+  var rightStart = eventStartDate(right);
+  var difference = (leftStart ? leftStart.getTime() : 0) - (rightStart ? rightStart.getTime() : 0);
+  if (difference !== 0) return difference;
+  return String(left.title || "").localeCompare(String(right.title || ""));
 }
 
-function groupEvents(events, nowValue) {
+function shortDateLabel(date) {
+  var weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return weekdays[date.getDay()] + ", " + months[date.getMonth()] + " " + date.getDate();
+}
+
+// Day an event is listed under: its start day, or today when it began
+// earlier and is still running (multi-day and overnight events).
+function eventAgendaDayKey(event, now) {
+  var start = eventStartDate(event);
+  if (!start) return "";
+  var key = dateKey(start);
+  var todayKey = dateKey(now);
+  if (key < todayKey && eventIsOngoing(event, now)) return todayKey;
+  return key;
+}
+
+function groupEvents(events, nowValue, options) {
   var now = parseDate(nowValue) || new Date();
-  var sorted = (events || []).slice().sort(function(left, right) {
-    var leftDate = String(left.start_time);
-    var rightDate = String(right.start_time);
-    if (leftDate !== rightDate) {
-      var leftKey = dateKey(parseDate(leftDate));
-      var rightKey = dateKey(parseDate(rightDate));
-      if (leftKey !== rightKey) return leftKey < rightKey ? -1 : 1;
-    }
-    return eventSort(left, right);
-  });
+  var todayKey = dateKey(now);
   var groups = [];
   var byKey = {};
 
-  for (var index = 0; index < sorted.length; index++) {
-    var event = sorted[index];
-    var start = parseDate(event.start_time);
-    if (!start) continue;
-    var key = dateKey(start);
+  function groupFor(key) {
     var group = byKey[key];
     if (!group) {
-      group = { key: key, label: dayLabel(start, now), events: [] };
+      var date = localDateFromKey(key);
+      group = { key: key, label: dayLabel(date, now), detail: shortDateLabel(date), today: key === todayKey, events: [] };
       byKey[key] = group;
       groups.push(group);
     }
-    group.events.push(event);
+    return group;
   }
 
+  if (options && options.includeToday === true) groupFor(todayKey);
+  var source = events || [];
+  for (var index = 0; index < source.length; index++) {
+    var key = eventAgendaDayKey(source[index], now);
+    if (key !== "") groupFor(key).events.push(source[index]);
+  }
+  groups.sort(function(left, right) { return left.key < right.key ? -1 : (left.key > right.key ? 1 : 0); });
+  for (var g = 0; g < groups.length; g++) groups[g].events.sort(eventSort);
   return groups;
+}
+
+// Flattened agenda order, matching what the panel renders top to bottom.
+function agendaOrder(groups) {
+  var ordered = [];
+  for (var g = 0; g < (groups || []).length; g++)
+    for (var e = 0; e < groups[g].events.length; e++) ordered.push(groups[g].events[e]);
+  return ordered;
 }
 
 function formatTime(value) {
@@ -97,14 +164,14 @@ function formatInspectorDate(date, now) {
 }
 
 function eventInclusiveEnd(event) {
-  var end = parseDate(event && event.end_time);
-  if (!end) return parseDate(event && event.start_time);
+  var end = eventEndDate(event);
+  if (!end) return eventStartDate(event);
   if (event && event.all_day === true) return new Date(end.getTime() - 1);
   return end;
 }
 
 function formatEventDate(event, nowValue) {
-  var start = parseDate(event && event.start_time);
+  var start = eventStartDate(event);
   if (!start) return "";
   var now = parseDate(nowValue) || new Date();
   var end = eventInclusiveEnd(event) || start;
@@ -115,8 +182,8 @@ function formatEventDate(event, nowValue) {
 
 function eventProgress(event, nowValue) {
   if (!event || event.all_day === true) return 0;
-  var start = parseDate(event.start_time);
-  var end = parseDate(event.end_time);
+  var start = eventStartDate(event);
+  var end = eventEndDate(event);
   var now = parseDate(nowValue) || new Date();
   if (!start || !end || now <= start || now >= end || end <= start) return 0;
   return Math.max(0, Math.min(1, (now.getTime() - start.getTime()) / (end.getTime() - start.getTime())));
@@ -131,34 +198,34 @@ function firstEventIndexForDate(events, nowValue) {
   var now = parseDate(nowValue) || new Date();
   var today = dateKey(now);
   for (var index = 0; index < (events || []).length; index += 1) {
-    var start = parseDate(events[index].start_time);
-    if (start && dateKey(start) === today) return index;
+    if (eventAgendaDayKey(events[index], now) === today) return index;
   }
   return -1;
 }
 
-function eventDateKey(event) {
-  var start = parseDate(event && event.start_time);
+function eventDateKey(event, nowValue) {
+  if (nowValue !== undefined) return eventAgendaDayKey(event, parseDate(nowValue) || new Date());
+  var start = eventStartDate(event);
   return start ? dateKey(start) : "";
 }
 
-function firstEventIndexForDay(events, dayKey) {
+function firstEventIndexForDay(events, dayKey, nowValue) {
   var key = String(dayKey || "");
   if (key === "") return -1;
   for (var index = 0; index < (events || []).length; index += 1) {
-    if (eventDateKey(events[index]) === key) return index;
+    if (eventDateKey(events[index], nowValue) === key) return index;
   }
   return -1;
 }
 
-function adjacentDayFirstEventIndex(events, currentIndex, direction) {
+function adjacentDayFirstEventIndex(events, currentIndex, direction, nowValue) {
   var list = events || [];
   if (list.length === 0 || direction === 0) return -1;
   var current = currentIndex >= 0 && currentIndex < list.length ? list[currentIndex] : null;
-  var currentKey = eventDateKey(current);
+  var currentKey = eventDateKey(current, nowValue);
   var targetKey = "";
   for (var index = 0; index < list.length; index += 1) {
-    var key = eventDateKey(list[index]);
+    var key = eventDateKey(list[index], nowValue);
     if (key === "") continue;
     if (direction > 0) {
       if ((currentKey === "" || key > currentKey) && (targetKey === "" || key < targetKey)) targetKey = key;
@@ -166,7 +233,7 @@ function adjacentDayFirstEventIndex(events, currentIndex, direction) {
       targetKey = key;
     }
   }
-  return firstEventIndexForDay(list, targetKey);
+  return firstEventIndexForDay(list, targetKey, nowValue);
 }
 
 function eventKey(event) {
@@ -234,27 +301,54 @@ function relativeDayLabel(date, now) {
 }
 
 function eventLeadLabel(event, now, relativeLeadMinutes) {
-  var start = parseDate(event.start_time);
-  var end = parseDate(event.end_time);
+  var start = eventStartDate(event);
+  var end = eventEndDate(event);
   if (!start || !end) return "";
+  if (event.all_day === true) {
+    var allDayLabel = relativeDayLabel(start, now);
+    return start.getTime() <= now.getTime() || allDayLabel === "" ? "All day" : allDayLabel;
+  }
   var untilStart = (start.getTime() - now.getTime()) / 1000;
   if (untilStart > 0) {
+    var leadSeconds = Math.max(0, Number(relativeLeadMinutes === undefined ? 10 : relativeLeadMinutes)) * 60;
+    if (untilStart <= leadSeconds) return "in " + durationLabel(untilStart);
     var dayLabel = relativeDayLabel(start, now);
     if (dayLabel !== "") return dayLabel + " " + formatTime(event.start_time);
-    var leadSeconds = Math.max(0, Number(relativeLeadMinutes === undefined ? 10 : relativeLeadMinutes)) * 60;
-    return untilStart <= leadSeconds ? "in " + durationLabel(untilStart) : formatTime(event.start_time);
+    return formatTime(event.start_time);
   }
   if ((now.getTime() - start.getTime()) < 60000) return "Now";
   return durationLabel((end.getTime() - now.getTime()) / 1000) + " left";
 }
 
-function colorBlock(event) {
-  return '<font color="' + escapeHtml(event.calendar_color || "#888888") + '">■</font>';
+// Short live status for agenda rows: "Now · 12m left", "in 25m".
+function eventRowStatus(event, nowValue) {
+  if (!event || event.all_day === true) return "";
+  var now = parseDate(nowValue) || new Date();
+  var start = eventStartDate(event);
+  var end = eventEndDate(event);
+  if (!start || !end || end <= now) return "";
+  if (start <= now) return durationLabel((end.getTime() - now.getTime()) / 1000) + " left";
+  var until = (start.getTime() - now.getTime()) / 1000;
+  return until <= 3600 ? "in " + durationLabel(until) : "";
+}
+
+function eventRowSubtitle(event) {
+  var parts = [formatEventRange(event)];
+  if (event && event.location && firstUrlInText(event.location) === "") parts.push(String(event.location));
+  else if (event && event.calendar_name) parts.push(String(event.calendar_name));
+  if (awaitingResponse(event)) parts.push("Invited");
+  else if (userRsvpStatus(event) === "TENTATIVE") parts.push("Maybe");
+  else if (isDeclined(event)) parts.push("Declined");
+  return parts.join("  ·  ");
+}
+
+function calendarColor(event) {
+  return htmlColor(event.calendar_color || "#888888");
 }
 
 function tooltipLine(event) {
   var when = event.all_day === true ? "All day" : formatEventRange(event);
-  return colorBlock(event) + "  " + when + " · " + escapeHtml(event.title || "Untitled");
+  return "■  " + when + " · " + (event.title || "Untitled");
 }
 
 function arrayValues(value) {
@@ -290,12 +384,14 @@ function filterEvents(events, options) {
   var showAllDay = optionEnabled(options, "showAllDay", true);
   var showWithoutParticipants = optionEnabled(options, "showEventsWithoutParticipants", true);
   var showWithoutLocation = optionEnabled(options, "showEventsWithoutLocation", true);
+  var showDeclined = optionEnabled(options, "showDeclinedEvents", true);
 
   return source.filter(function(event) {
+    if (!showDeclined && isDeclined(event)) return false;
     if (selectionCustomized && included.indexOf(String(event.calendar_id)) === -1) return false;
     if (!showAllDay && event.all_day === true) return false;
     if (!showWithoutParticipants && (!event.attendees || event.attendees.length === 0)) return false;
-    if (!showWithoutLocation && !event.location && !event.conference_url) return false;
+    if (!showWithoutLocation && !event.location && eventConferenceUrl(event) === "") return false;
     return true;
   });
 }
@@ -335,66 +431,120 @@ function calendarOptions(calendars) {
   }).sort(function(a, b) { return a.label.localeCompare(b.label); });
 }
 
+function calendarNameOptions(calendars) {
+  var seen = {};
+  return (calendars || []).filter(function(calendar) {
+    var name = String(calendar.name || "");
+    if (name === "" || seen[name] || calendar.read_only === true) return false;
+    seen[name] = true;
+    return true;
+  }).map(function(calendar) {
+    return { value: String(calendar.name), label: String(calendar.name) };
+  }).sort(function(a, b) { return a.label.localeCompare(b.label); });
+}
+
+function eventSegment(event, now, relativeLeadMinutes, titleLimit, showTime, showTitle) {
+  var parts = [];
+  if (showTime) parts.push(eventLeadLabel(event, now, relativeLeadMinutes));
+  if (showTitle) parts.push(truncate(event.title, titleLimit));
+  return { color: calendarColor(event), text: parts.join(" · ") };
+}
+
+function segmentsText(segments) {
+  return segments.map(function(segment) {
+    return (segment.color !== "" ? "■ " : "") + segment.text;
+  }).join(" | ");
+}
+
+function segmentsHtml(segments) {
+  return segments.map(function(segment) {
+    var square = segment.color !== "" ? '<font color="' + segment.color + '">■</font> ' : "";
+    return square + escapeHtml(segment.text);
+  }).join(" | ");
+}
+
+// Picks what the bar shows, Notion Calendar style: timed meetings win over
+// all-day events, declined invitations never show, and an ongoing meeting
+// hands the bar over to the next one once it is inside the countdown window.
+function barAnchor(events, now, options) {
+  var opts = options || {};
+  var leadMinutes = Number(opts.relativeLeadMinutes === undefined ? 10 : opts.relativeLeadMinutes);
+  var horizonHours = Number(opts.barHorizonHours || 0);
+  var horizonEnd = horizonHours > 0 ? now.getTime() + horizonHours * 3600000 : Infinity;
+  var timed = [];
+  var allDay = [];
+  (events || []).forEach(function(event) {
+    if (isDeclined(event) || eventHasEnded(event, now)) return;
+    var start = eventStartDate(event);
+    if (!start || start.getTime() > horizonEnd) return;
+    if (event.all_day === true) allDay.push(event);
+    else timed.push(event);
+  });
+  timed.sort(eventSort);
+  allDay.sort(eventSort);
+  var ongoing = timed.filter(function(event) { return eventIsOngoing(event, now); });
+  var upcoming = timed.filter(function(event) { return !eventIsOngoing(event, now); });
+  var soon = upcoming.length > 0 && (eventStartDate(upcoming[0]).getTime() - now.getTime()) <= Math.max(1, leadMinutes) * 60000;
+  if (soon) return { anchor: upcoming[0], timed: timed };
+  if (ongoing.length > 0) return { anchor: ongoing[0], timed: timed };
+  var todayKey = dateKey(now);
+  var allDayToday = allDay.filter(function(event) { return eventIsOngoing(event, now); });
+  var nextTimed = upcoming.length > 0 ? upcoming[0] : null;
+  if (nextTimed && dateKey(eventStartDate(nextTimed)) === todayKey) return { anchor: nextTimed, timed: timed };
+  if (allDayToday.length > 0) return { anchor: allDayToday[0], timed: [] };
+  if (nextTimed) return { anchor: nextTimed, timed: timed };
+  if (allDay.length > 0) return { anchor: allDay[0], timed: [] };
+  return { anchor: null, timed: [] };
+}
+
 function barPresentation(agenda, maximumTitleLength, displayOptions) {
   if (!agenda || agenda.status !== "ok") {
-    return { text: "", className: "unavailable", tooltip: "chroncal unavailable" };
+    return { text: "", html: "", className: "unavailable", tooltip: "chroncal unavailable", event: null };
   }
 
-  var events = agenda.events || [];
-  var tooltip = richText(events.length === 0 ? "No upcoming events" : events.map(tooltipLine).join("<br>"));
-  if (events.length === 0) return { text: "", className: "empty", tooltip: tooltip };
+  var now = parseDate(displayOptions && displayOptions.now) || parseDate(agenda.generated_at) || new Date();
+  var events = activeEvents(agenda.events || [], now.toISOString());
+  var tooltip = events.length === 0 ? "No upcoming events" : events.map(tooltipLine).join("\n");
+  var chosen = barAnchor(events, now, displayOptions);
+  var anchor = chosen.anchor;
+  if (!anchor) return { text: "", html: "", className: "empty", tooltip: tooltip, event: null };
 
-  var now = parseDate(agenda.generated_at) || new Date();
-  var anchor = events[0];
+  function present(segments, more, className) {
+    var hasText = segments.some(function(segment) { return segment.text !== ""; });
+    return {
+      text: hasText ? " " + segmentsText(segments) + more + " " : "",
+      html: hasText ? " " + segmentsHtml(segments) + more + " " : "",
+      className: className,
+      tooltip: tooltip,
+      event: anchor
+    };
+  }
+
   var titleLimit = maximumTitleLength || 42;
   var showTime = optionEnabled(displayOptions, "showTime", true);
   var showTitle = optionEnabled(displayOptions, "showTitle", true);
   var relativeLeadMinutes = Number(displayOptions && displayOptions.relativeLeadMinutes !== undefined ? displayOptions.relativeLeadMinutes : 10);
-  if (anchor.all_day === true) {
-    var allDayParts = [];
-    if (showTime) allDayParts.push("All day");
-    if (showTitle) allDayParts.push(escapeHtml(truncate(anchor.title, titleLimit)));
-    return {
-      text: allDayParts.length > 0 ? richText(" " + allDayParts.join(" · ") + " ") : "",
-      className: "all-day",
-      tooltip: tooltip
-    };
-  }
+  if (anchor.all_day === true)
+    return present([eventSegment(anchor, now, relativeLeadMinutes, titleLimit, showTime, showTitle)], "", "all-day");
 
-  var anchorStart = parseDate(anchor.start_time);
-  var anchorEnd = parseDate(anchor.end_time);
-  var active = anchorStart && anchorEnd && anchorStart <= now && anchorEnd > now;
-  var className = active ? "in-progress" : "upcoming";
-  var cluster = events.filter(function(event) {
-    if (event.all_day === true) return false;
-    var start = parseDate(event.start_time);
-    var end = parseDate(event.end_time);
-    return start && end && anchorStart && anchorEnd && start < anchorEnd && anchorStart < end;
+  var anchorStart = eventStartDate(anchor);
+  var anchorEnd = eventEndDate(anchor);
+  var className = eventIsOngoing(anchor, now) ? "in-progress" : "upcoming";
+  var cluster = chosen.timed.filter(function(event) {
+    var start = eventStartDate(event);
+    var end = eventEndDate(event);
+    if (!start || !end || !(start < anchorEnd && anchorStart < end)) return false;
+    // An upcoming anchor only groups meetings that start with it.
+    return className === "in-progress" ? eventIsOngoing(event, now) : start.getTime() === anchorStart.getTime();
   });
+  if (cluster.length <= 1)
+    return present([eventSegment(anchor, now, relativeLeadMinutes, titleLimit, showTime, showTitle)], "", className);
 
-  if (cluster.length <= 1) {
-    var parts = [];
-    if (showTime) parts.push(eventLeadLabel(anchor, now, relativeLeadMinutes));
-    if (showTitle) parts.push(escapeHtml(truncate(anchor.title, titleLimit)));
-    return {
-      text: parts.length > 0 ? richText(" " + parts.join(" · ") + " ") : "",
-      className: className,
-      tooltip: tooltip
-    };
-  }
-
-  var visible = cluster.slice(0, 3).map(function(event) {
-    var eventParts = [];
-    if (showTime) eventParts.push(eventLeadLabel(event, now, relativeLeadMinutes));
-    if (showTitle) eventParts.push(escapeHtml(truncate(event.title, 18)));
-    return colorBlock(event) + (eventParts.length > 0 ? " " + eventParts.join(" · ") : "");
-  }).join(" | ");
+  var segments = cluster.slice(0, 3).map(function(event) {
+    return eventSegment(event, now, relativeLeadMinutes, 18, showTime, showTitle);
+  });
   var more = cluster.length > 3 ? " +" + (cluster.length - 3) : "";
-  return {
-    text: richText(" " + visible + more + " "),
-    className: [className, "overlap"],
-    tooltip: tooltip
-  };
+  return present(segments, more, [className, "overlap"]);
 }
 
 function dateInputValue(value, allDay) {
@@ -799,6 +949,14 @@ function recurrenceRuleSummary(form, startDateValue) {
   return summary;
 }
 
+// HH:MM edits are read in the local zone, so an event pinned to another
+// IANA zone keeps its time unless that zone is the local one.
+function canEditEventTime(event, localTimezone) {
+  if (!event) return true;
+  var zone = String(event.timezone || "");
+  return zone === "" || (String(localTimezone || "") !== "" && zone === String(localTimezone));
+}
+
 function canEditRecurrence(event) {
   if (!event) return true;
   return String(event.recurrence_id || "") === "";
@@ -815,8 +973,12 @@ function eventReference(event) {
   return "";
 }
 
+function isReadOnlyEvent(event) {
+  return !!event && event.calendar_read_only === true;
+}
+
 function canEditEvent(event) {
-  return eventReference(event) !== "";
+  return eventReference(event) !== "" && !isReadOnlyEvent(event);
 }
 
 function isGeneratedRecurringEvent(event) {
@@ -896,7 +1058,7 @@ function eventMutationArgs(mode, event, values, options) {
     var dateChanged = String(form.date) !== String(original.date);
     var timeChanged = String(form.time) !== String(original.time);
     var durationChanged = String(form.duration) !== String(original.duration);
-    if (String(event.timezone || "") !== "" && (dateChanged || timeChanged || durationChanged)) return [];
+    if (!canEditEventTime(event, options && options.localTimezone) && (dateChanged || timeChanged || durationChanged)) return [];
     args = ["event", "update"].concat(eventMutationTargetArgs(event));
     args.push("--title", title);
     if (dateChanged) args.push("--date", String(form.date));
@@ -985,12 +1147,20 @@ function userAttendee(event) {
 }
 
 function canRsvp(event) {
-  return userAttendee(event) !== null;
+  return !isReadOnlyEvent(event) && userAttendee(event) !== null;
 }
 
 function userRsvpStatus(event) {
   var attendee = userAttendee(event);
   return attendee ? normalizeRsvpStatus(attendee.rsvp_status) : "";
+}
+
+function isDeclined(event) {
+  return userRsvpStatus(event) === "DECLINED";
+}
+
+function awaitingResponse(event) {
+  return canRsvp(event) && userRsvpStatus(event) === "";
 }
 
 function eventRsvpArgs(event, status) {
@@ -1056,11 +1226,114 @@ function rewriteOpenUrl(url, event) {
   return withGoogleAuthuser(url, eventJoinEmail(event));
 }
 
+var CONFERENCE_PROVIDERS = [
+  { name: "Google Meet", pattern: /^meet\.google\.com$/ },
+  { name: "Zoom", pattern: /(^|\.)zoom\.(us|com)$/ },
+  { name: "Teams", pattern: /^teams\.(microsoft|live)\.com$/ },
+  { name: "Webex", pattern: /(^|\.)webex\.com$/ },
+  { name: "Jitsi", pattern: /^meet\.jit\.si$/ },
+  { name: "Whereby", pattern: /(^|\.)whereby\.com$/ },
+  { name: "Chime", pattern: /(^|\.)chime\.aws$/ },
+  { name: "GoTo", pattern: /(^|\.)(gotomeeting\.com|goto\.com)$/ },
+  { name: "Around", pattern: /(^|\.)around\.co$/ },
+  { name: "Slack", pattern: /^app\.slack\.com$/ },
+  { name: "Discord", pattern: /^(discord\.gg|discord\.com)$/ }
+];
+
+function conferenceProvider(url) {
+  var host = urlHost(url);
+  if (host === "") return "";
+  for (var i = 0; i < CONFERENCE_PROVIDERS.length; i++)
+    if (CONFERENCE_PROVIDERS[i].pattern.test(host)) return CONFERENCE_PROVIDERS[i].name;
+  return "";
+}
+
+function urlsInText(value) {
+  var matches = String(value || "").match(/https?:\/\/[^\s<>()"]+/ig) || [];
+  return matches.map(function(url) { return url.replace(/[.,;:!?]+$/, ""); });
+}
+
+function firstConferenceUrlInText(value) {
+  var urls = urlsInText(value);
+  for (var i = 0; i < urls.length; i++) if (conferenceProvider(urls[i]) !== "") return urls[i];
+  return "";
+}
+
+// Video-call link only: the explicit conference URI, else a known meeting
+// provider found in the URL, location, or notes (Google puts Meet there).
+function eventConferenceUrl(event) {
+  if (!event) return "";
+  var explicit = String(event.conference_url || "");
+  if (/^https?:\/\//i.test(explicit)) return rewriteOpenUrl(explicit, event);
+  var url = String(event.url || "");
+  if (conferenceProvider(url) !== "") return rewriteOpenUrl(url, event);
+  var found = firstConferenceUrlInText(event.location) || firstConferenceUrlInText(event.description);
+  return found === "" ? "" : rewriteOpenUrl(found, event);
+}
+
 function eventOpenUrl(event) {
   if (!event) return "";
-  var url = String(event.conference_url || event.url || firstUrlInText(event.location) || firstUrlInText(event.description) || "");
+  var conference = eventConferenceUrl(event);
+  if (conference !== "") return conference;
+  var url = String(event.url || firstUrlInText(event.location) || firstUrlInText(event.description) || "");
   if (!/^https?:\/\//i.test(url)) return "";
   return rewriteOpenUrl(url, event);
+}
+
+// Timed, non-declined events whose start is within `leadMinutes` and that
+// started no more than two minutes ago (so a fresh shell does not replay
+// alerts for meetings already under way).
+function dueReminders(events, nowValue, leadMinutes, seen) {
+  var now = parseDate(nowValue) || new Date();
+  var lead = Math.max(0, Number(leadMinutes) || 0) * 60000;
+  var notified = seen || {};
+  return (events || []).filter(function(event) {
+    if (event.all_day === true || isDeclined(event) || String(event.status || "").toUpperCase() === "CANCELLED") return false;
+    var start = eventStartDate(event);
+    if (!start) return false;
+    var delta = start.getTime() - now.getTime();
+    return delta <= lead && delta > -120000 && notified[eventKey(event)] === undefined;
+  });
+}
+
+function pruneReminderKeys(seen, nowValue) {
+  var now = parseDate(nowValue) || new Date();
+  var kept = {};
+  for (var key in seen) {
+    var end = parseDate(seen[key]);
+    if (!end || end.getTime() > now.getTime()) kept[key] = seen[key];
+  }
+  return kept;
+}
+
+function reminderBody(event, nowValue) {
+  var now = parseDate(nowValue) || new Date();
+  var start = eventStartDate(event);
+  var lead = start && start.getTime() > now.getTime() ? "Starts " + "in " + durationLabel((start.getTime() - now.getTime()) / 1000) : "Starting now";
+  var parts = [lead + " · " + formatEventRange(event)];
+  if (event.location && firstUrlInText(event.location) === "") parts.push(String(event.location));
+  return parts.join("\n");
+}
+
+function eventJoinLabel(event) {
+  var conference = eventConferenceUrl(event);
+  if (conference === "") return eventOpenUrl(event) !== "" ? "Open link" : "";
+  var provider = conferenceProvider(conference);
+  return provider === "" ? "Join" : "Join " + provider;
+}
+
+// The meeting a "join next" action should open: an ongoing call first, then
+// the next one starting today. Declined invitations are skipped.
+function joinableEvent(events, nowValue) {
+  var now = parseDate(nowValue) || new Date();
+  var candidates = (events || []).filter(function(event) {
+    return event.all_day !== true && !isDeclined(event) && !eventHasEnded(event, now) && eventConferenceUrl(event) !== "";
+  }).sort(eventSort);
+  for (var i = 0; i < candidates.length; i++) if (eventIsOngoing(candidates[i], now)) return candidates[i];
+  var todayKey = dateKey(now);
+  for (var j = 0; j < candidates.length; j++)
+    if (dateKey(eventStartDate(candidates[j])) === todayKey) return candidates[j];
+  return null;
 }
 
 function chroncalLaunchArgs(event) {
@@ -1078,8 +1351,17 @@ function showOpenInChroncalEnabled(settings) {
   return optionEnabled(settings, "showOpenInChroncal", false);
 }
 
+// Drops the dial-in blocks Google Meet and Microsoft Teams append to
+// invitations; the Join button already carries that link.
+function cleanDescription(value) {
+  var text = String(value || "").replace(/\r\n/g, "\n");
+  text = text.replace(/-::~[:~]*::-[\s\S]*?-::~[:~]*::-/g, "");
+  text = text.replace(/_{30,}[\s\S]*?Microsoft Teams[\s\S]*?_{30,}/g, "");
+  return text.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function eventNotesHtml(event, linkColor) {
-  var text = event ? String(event.description || "") : "";
+  var text = event ? cleanDescription(event.description) : "";
   if (text === "") return "";
   var email = eventJoinEmail(event);
   var color = htmlColor(linkColor);
@@ -1127,12 +1409,16 @@ function eventAttributes(event) {
   if (event.class) values.push(titleCase(event.class));
   values.push(String(event.transp || "OPAQUE").toLocaleUpperCase() === "TRANSPARENT" ? "Free" : "Busy");
   if (event.recurrence_rule || event.rdates || event.recurrence_id) values.push("Recurring");
+  if (isReadOnlyEvent(event)) values.push("Read-only calendar");
   return values.join(" · ");
 }
 
 function humanRsvp(value) {
-  var normalized = String(value || "").toLowerCase();
-  return normalized === "" ? "No response" : normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  var normalized = normalizeRsvpStatus(value);
+  if (normalized === "ACCEPTED") return "Going";
+  if (normalized === "DECLINED") return "Declined";
+  if (normalized === "TENTATIVE") return "Maybe";
+  return "Awaiting";
 }
 
 function attendeeStatusLabel(attendee) {
@@ -1140,11 +1426,64 @@ function attendeeStatusLabel(attendee) {
   return humanRsvp(attendee && attendee.rsvp_status);
 }
 
+function attendeeCounts(event) {
+  var attendees = event && event.attendees ? event.attendees : [];
+  var counts = { total: attendees.length, yes: 0, no: 0, maybe: 0, awaiting: 0 };
+  attendees.forEach(function(attendee) {
+    var status = normalizeRsvpStatus(attendee.rsvp_status);
+    if (attendee.organizer === true || status === "ACCEPTED") counts.yes += 1;
+    else if (status === "DECLINED") counts.no += 1;
+    else if (status === "TENTATIVE") counts.maybe += 1;
+    else counts.awaiting += 1;
+  });
+  return counts;
+}
+
+function attendeeCountsLabel(event) {
+  var counts = attendeeCounts(event);
+  if (counts.total === 0) return "";
+  var parts = [counts.total + (counts.total === 1 ? " guest" : " guests")];
+  var detail = [];
+  if (counts.yes > 0) detail.push(counts.yes + " yes");
+  if (counts.maybe > 0) detail.push(counts.maybe + " maybe");
+  if (counts.no > 0) detail.push(counts.no + " no");
+  if (counts.awaiting > 0) detail.push(counts.awaiting + " awaiting");
+  return parts.concat(detail).join(" · ");
+}
+
+function attendeeDisplayName(attendee) {
+  var name = String(attendee && attendee.name || "").trim();
+  var email = String(attendee && attendee.email || "").trim();
+  if (name !== "" && !emailsMatch(name, email)) return name;
+  return email !== "" ? email : (name !== "" ? name : "Guest");
+}
+
+function sortedAttendees(event) {
+  var rank = { organizer: 0, ACCEPTED: 1, TENTATIVE: 2, "": 3, DECLINED: 4 };
+  var attendees = (event && event.attendees ? event.attendees : []).slice();
+  return attendees.sort(function(left, right) {
+    var leftRank = left.organizer === true ? 0 : rank[normalizeRsvpStatus(left.rsvp_status)];
+    var rightRank = right.organizer === true ? 0 : rank[normalizeRsvpStatus(right.rsvp_status)];
+    if (leftRank !== rightRank) return leftRank - rightRank;
+    return attendeeDisplayName(left).localeCompare(attendeeDisplayName(right));
+  });
+}
+
+function organizerLabel(event) {
+  var attendees = event && event.attendees ? event.attendees : [];
+  for (var i = 0; i < attendees.length; i++) {
+    if (attendees[i].organizer === true) {
+      var owner = String(event.calendar_owner_email || "");
+      return owner !== "" && emailsMatch(attendees[i].email, owner) ? "You" : attendeeDisplayName(attendees[i]);
+    }
+  }
+  return "";
+}
+
 function attendeeSummary(event) {
   var attendees = event && event.attendees ? event.attendees : [];
-  return attendees.map(function(attendee) {
-    var identity = String(attendee.name || attendee.email || "Guest");
-    return identity + " · " + attendeeStatusLabel(attendee);
+  return sortedAttendees({ attendees: attendees }).map(function(attendee) {
+    return attendeeDisplayName(attendee) + " · " + attendeeStatusLabel(attendee);
   }).join("\n");
 }
 
@@ -1156,13 +1495,15 @@ function eventDetailsText(event, nowValue) {
   lines.push(formatEventRange(event));
   if (event.calendar_name) lines.push(String(event.calendar_name));
   if (event.location) lines.push(String(event.location));
-  if (event.description) lines.push(String(event.description));
+  var notes = cleanDescription(event.description);
+  if (notes) lines.push(notes);
+  var link = eventOpenUrl(event);
+  if (link && notes.indexOf(link) === -1) lines.push(link);
   var attendees = event.attendees || [];
-  attendees.forEach(function(attendee) {
-    var identity = String(attendee.name || attendee.email || "Guest");
-    var email = attendee.email && attendee.name ? " <" + attendee.email + ">" : "";
+  sortedAttendees(event).forEach(function(attendee) {
+    var identity = attendeeDisplayName(attendee);
+    var email = attendee.email && identity !== attendee.email ? " <" + attendee.email + ">" : "";
     lines.push(identity + email + " · " + attendeeStatusLabel(attendee));
   });
-  if (event.url) lines.push(String(event.url));
   return lines.join("\n");
 }

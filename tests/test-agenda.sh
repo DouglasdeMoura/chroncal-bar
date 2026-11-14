@@ -35,6 +35,19 @@ jq -e '
   and (.calendars | map(select(.hidden == true).id)) == [2]
 ' <<<"$output" >/dev/null
 
+jq -e '
+  .local_timezone == "UTC"
+  and (.calendars | map(select(.read_only).id)) == [3]
+  and (.events | map(select(.calendar_read_only).title)) == ["Personal"]
+' <<<"$output" >/dev/null
+
+# All-day ends are floating dates: west of UTC the event lasts until local
+# midnight instead of disappearing at 21:00 local.
+late=$(TZ=America/Sao_Paulo CHRONCAL_BAR_NOW=2026-08-17T01:00:00Z "$ROOT/scripts/chroncal-bar-agenda" --days 1)
+jq -e '.local_timezone == "America/Sao_Paulo" and (.events | map(.title)) == ["Release day"]' <<<"$late" >/dev/null
+after=$(TZ=America/Sao_Paulo CHRONCAL_BAR_NOW=2026-08-17T03:30:00Z "$ROOT/scripts/chroncal-bar-agenda" --days 1)
+jq -e '.events == []' <<<"$after" >/dev/null
+
 grep -Fx 'event list --from 2026-08-15 --to 2026-08-16 --output json' "$TMP/chroncal.log" >/dev/null
 grep -Fx 'calendar list --output json' "$TMP/chroncal.log" >/dev/null
 

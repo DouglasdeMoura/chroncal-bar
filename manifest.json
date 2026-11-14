@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "douglasdemoura.chroncal-bar",
   "name": "Chroncal Bar",
-  "version": "1.1.38",
+  "version": "1.2.0",
   "author": "Douglas Moura",
   "license": "MIT",
-  "description": "Chroncal menu-bar agenda, search, quick actions, and event editing for Omarchy Quattro.",
+  "description": "Notion Calendar-style menu-bar agenda for Chroncal: next meeting, one-click join, search, RSVP, and event editing.",
   "kinds": [
     "bar-widget"
   ],
@@ -46,6 +46,16 @@
         "max": 120,
         "step": 2,
         "defaultValue": 42
+      },
+      {
+        "key": "barHorizonHours",
+        "type": "integer",
+        "label": "Bar horizon (hours)",
+        "min": 0,
+        "max": 168,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Only show events on the bar that start within this many hours; 0 shows anything in the agenda horizon."
       },
       {
         "key": "relativeLeadMinutes",
@@ -108,6 +118,17 @@
         "defaultValue": "On"
       },
       {
+        "key": "showDeclinedEvents",
+        "type": "enum",
+        "label": "Include declined events in the agenda",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "On",
+        "description": "Declined events appear dimmed in the agenda and never on the bar."
+      },
+      {
         "key": "showOpenInChroncal",
         "type": "enum",
         "label": "Show Open in Chroncal on event details",
@@ -117,6 +138,16 @@
         ],
         "defaultValue": "Off",
         "description": "Shows a button on event details that launches the Chroncal TUI on this event."
+      },
+      {
+        "key": "joinReminderMinutes",
+        "type": "integer",
+        "label": "Meeting alert lead (minutes)",
+        "min": -1,
+        "max": 60,
+        "step": 1,
+        "defaultValue": -1,
+        "description": "Send a notification with a Join action this many minutes before timed events; -1 turns alerts off."
       }
     ]
   }

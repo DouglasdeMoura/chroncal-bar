@@ -16,6 +16,7 @@ Item {
   property bool showOpenInChroncal: false
 
   signal joinRequested()
+  signal copyLinkRequested()
   signal mapRequested()
   signal chroncalRequested()
   signal editRequested()
@@ -34,6 +35,9 @@ Item {
   readonly property var rsvpChoices: Model.rsvpChoices()
   readonly property string eventDateLabel: Model.formatEventDate(eventData, nowIso)
   readonly property color notesLinkColor: Color.accent
+  readonly property string openUrl: Model.eventOpenUrl(eventData)
+  readonly property string joinLabel: Model.eventJoinLabel(eventData)
+  readonly property string rowStatus: Model.eventRowStatus(eventData, nowIso)
 
   onEventDataChanged: detailsFlick.contentY = 0
 
@@ -106,7 +110,7 @@ Item {
 
           Text {
             width: parent.width
-            text: Model.formatEventRange(root.eventData)
+            text: Model.formatEventRange(root.eventData) + (root.rowStatus !== "" ? "  ·  " + root.rowStatus : "")
             textFormat: Text.PlainText
             color: Util.alpha(root.foreground, 0.82)
             font.family: root.fontFamily
@@ -246,7 +250,7 @@ Item {
       }
 
       Column {
-        visible: String(root.eventData.description || "") !== ""
+        visible: Model.cleanDescription(root.eventData.description) !== ""
         width: parent.width
         spacing: Style.space(3)
 
@@ -290,6 +294,17 @@ Item {
           font.pixelSize: Style.font.caption
           font.bold: true
           font.letterSpacing: 1
+        }
+
+        Text {
+          width: parent.width
+          text: Model.attendeeCountsLabel(root.eventData)
+            + (Model.organizerLabel(root.eventData) !== "" ? "\nOrganized by " + Model.organizerLabel(root.eventData) : "")
+          textFormat: Text.PlainText
+          color: Util.alpha(root.foreground, 0.62)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.Wrap
         }
 
         Text {
@@ -344,9 +359,9 @@ Item {
         id: joinButton
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        visible: Model.eventOpenUrl(root.eventData) !== ""
-        text: "Join"
-        tooltipText: "Join or open event link"
+        visible: root.openUrl !== ""
+        text: root.joinLabel
+        tooltipText: root.openUrl
         bordered: true
         focusable: true
         enabled: visible && !root.busy
@@ -357,6 +372,20 @@ Item {
         horizontalPadding: Style.space(8)
         verticalPadding: Style.space(3)
         onClicked: root.joinRequested()
+      }
+
+      PanelActionButton {
+        id: copyLinkButton
+        anchors.left: joinButton.right
+        anchors.leftMargin: Style.space(4)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: joinButton.visible
+        iconText: "󰆏"
+        tooltipText: "Copy link (u)"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        enabled: !root.busy
+        onClicked: root.copyLinkRequested()
       }
 
       Text {
@@ -371,7 +400,7 @@ Item {
         maximumLineCount: 1
         verticalAlignment: Text.AlignVCenter
         anchors.left: parent.left
-        anchors.leftMargin: joinButton.visible ? joinButton.width + Style.space(12) : 0
+        anchors.leftMargin: joinButton.visible ? joinButton.width + copyLinkButton.width + Style.space(16) : 0
         anchors.right: actionIcons.left
         anchors.rightMargin: Style.space(12)
         anchors.verticalCenter: parent.verticalCenter
@@ -389,6 +418,7 @@ Item {
           foreground: root.foreground
           fontFamily: root.fontFamily
           focusable: true
+          visible: !Model.isReadOnlyEvent(root.eventData)
           enabled: !root.busy && root.canEdit
           onClicked: root.editRequested()
         }
@@ -399,6 +429,7 @@ Item {
           foreground: root.foreground
           fontFamily: root.fontFamily
           focusable: true
+          visible: !Model.isReadOnlyEvent(root.eventData)
           enabled: root.canDelete && !root.busy
           onClicked: root.deleteRequested()
         }

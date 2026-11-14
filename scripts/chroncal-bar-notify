@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Meeting reminder: chroncal-bar-notify TITLE BODY [URL] [ACTION_LABEL]
+# With a web URL the notification carries a Join action; choosing it opens
+# the link. Runs detached from the shell and exits when the notification
+# closes.
+set -uo pipefail
+
+title=${1:-Event}
+body=${2:-}
+url=${3:-}
+label=${4:-Join}
+
+if [[ $url =~ ^https?:// ]]; then
+  choice=$(notify-send -a Chroncal -u normal -i x-office-calendar \
+    --wait -A "join=$label" -- "$title" "$body" 2>/dev/null) || exit 0
+  if [[ $choice == join ]]; then
+    xdg-open "$url" >/dev/null 2>&1 &
+  fi
+else
+  notify-send -a Chroncal -u normal -i x-office-calendar -- "$title" "$body" 2>/dev/null || :
+fi

@@ -21,8 +21,19 @@ done
 (( days >= 1 && days <= 31 )) || { printf '%s\n' '--days must be between 1 and 31' >&2; exit 64; }
 
 unavailable() {
-  printf '{"generated_at":"%s","status":"unavailable","range":{"from":"%s","to":"%s"},"calendars":[],"events":[],"next":null}\n' \
+  printf '{"generated_at":"%s","status":"unavailable","local_timezone":"","range":{"from":"%s","to":"%s"},"calendars":[],"events":[],"next":null}\n' \
     "$generated_at" "$from_date" "$to_date"
+}
+
+# IANA name of the local zone: TZ when it names one, else /etc/localtime.
+local_timezone() {
+  local zone=${TZ:-}
+  zone=${zone#:}
+  if [[ -z $zone ]]; then
+    zone=$(readlink -f /etc/localtime 2>/dev/null) || zone=""
+    zone=${zone#*/zoneinfo/}
+  fi
+  [[ $zone =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*$ ]] && printf '%s' "$zone"
 }
 
 now_input=${CHRONCAL_BAR_NOW:-$(date --iso-8601=seconds)}
@@ -76,6 +87,7 @@ if ! jq -cn \
   --arg generated_at "$generated_at" \
   --arg from "$from_date" \
   --arg to "$to_date" \
+  --arg local_timezone "$(local_timezone)" \
   --argjson now "$now_epoch" \
   --slurpfile events "$work_dir/events.json" \
   --slurpfile calendars "$work_dir/calendars.json" \
@@ -100,6 +112,7 @@ if ! jq -cn \
         calendar_name: ($calendar.name // "Calendar"),
         calendar_color: fallback_color($calendar.color),
         calendar_owner_email: ($calendar.owner_email // ""),
+        calendar_read_only: (($calendar.remote_access // "") | ascii_downcase | IN("read", "freebusy", "free-busy", "none")),
         title: (.title // "Untitled"),
         start_time,
         end_time,
@@ -128,12 +141,18 @@ if ! jq -cn \
     | . as $event
     | select(($hidden_calendar_ids | index($event.calendar_id)) == null)
     | select((.status // "CONFIRMED") != "CANCELLED")
-    | select((.end_time | fromdateiso8601) > $now)
+    # All-day ends are floating dates; compare them to the local day.
+    | select(if .all_day == true
+        then ((.end_time // .start_time)[0:10]) > $from
+          or ((.end_time // "") == "" and (.start_time[0:10]) >= $from)
+        else (.end_time | fromdateiso8601) > $now
+        end)
     | normalized_event
-  ] | sort_by(.start_time | fromdateiso8601)) as $visible_events
+  ] | sort_by(.start_time)) as $visible_events
   | {
       generated_at: $generated_at,
       status: "ok",
+      local_timezone: $local_timezone,
       range: {from: $from, to: $to},
       calendars: [
         $calendars[]?
@@ -144,6 +163,7 @@ if ! jq -cn \
             color: fallback_color(.color),
             owner_email: (.owner_email // ""),
             is_default: (.is_default == true),
+            read_only: ((.remote_access // "") | ascii_downcase | IN("read", "freebusy", "free-busy", "none")),
             hidden: (($hidden_calendar_ids | index($calendar.id)) != null)
           }
       ],

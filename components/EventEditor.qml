@@ -13,6 +13,7 @@ Flickable {
   property var eventData: null
   property bool editingSeries: false
   property var calendars: []
+  property string localTimezone: ""
   property bool busy: false
   property string externalError: ""
 
@@ -37,7 +38,14 @@ Flickable {
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var validationErrors: Model.validateEventForm(values())
-  readonly property bool canEditTime: editorMode !== "edit" || !eventData || String(eventData.timezone || "") === ""
+  readonly property bool canEditTime: editorMode !== "edit" || Model.canEditEventTime(eventData, localTimezone)
+  readonly property var calendarChoices: {
+    var choices = Model.calendarNameOptions(root.calendars)
+    // Keep an unknown stored name selectable rather than silently moving it.
+    if (root.calendarValue !== "" && !choices.some(function(choice) { return choice.value === root.calendarValue }))
+      choices = choices.concat([{ value: root.calendarValue, label: root.calendarValue }])
+    return choices
+  }
   readonly property bool canEditRecurrence: editorMode !== "edit" || !eventData || String(eventData.recurrence_id || "") === ""
   readonly property bool showingRepeatEnds: repeatPreset !== "none"
   readonly property bool showingCustomRepeat: repeatPreset === "custom"
@@ -114,6 +122,7 @@ Flickable {
   function closePickers() {
     datePicker.close()
     endsDatePicker.close()
+    calendarDropdown.close()
     repeatDropdown.close()
     endsDropdown.close()
     freqDropdown.close()
@@ -135,6 +144,7 @@ Flickable {
     if (event.key === Qt.Key_Escape) {
       if (datePicker.opened) datePicker.close()
       else if (endsDatePicker.opened) endsDatePicker.close()
+      else if (calendarDropdown.popupOpen) calendarDropdown.close()
       else if (repeatDropdown.popupOpen) repeatDropdown.close()
       else if (endsDropdown.popupOpen) endsDropdown.close()
       else if (freqDropdown.popupOpen) freqDropdown.close()
@@ -513,11 +523,21 @@ Flickable {
     }
 
     FieldLabel { text: "CALENDAR" }
-    FormField {
+    Dropdown {
+      id: calendarDropdown
       width: parent.width
-      text: root.calendarValue
-      placeholderText: "Calendar name"
-      onTextEdited: root.calendarValue = text
+      showLabel: false
+      options: root.calendarChoices
+      enabled: !root.busy
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onChanged: function(value) { root.calendarValue = value }
+    }
+
+    Binding {
+      target: calendarDropdown
+      property: "value"
+      value: root.calendarValue
     }
 
     FieldLabel { text: "LOCATION" }

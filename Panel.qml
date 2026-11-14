@@ -21,8 +21,17 @@ Panel {
   onAgendaDataChanged: root.hydrateSelectedEvent()
   property string searchQuery: ""
   property bool searching: false
-  readonly property var visibleEvents: Model.searchEvents(agendaData.events || [], searchQuery)
-  readonly property var groups: Model.groupEvents(visibleEvents, agendaData.generated_at || new Date().toISOString())
+  readonly property string nowIso: hostWidget ? hostWidget.nowIso : new Date().toISOString()
+  readonly property string localTimezone: hostWidget && hostWidget.agendaData ? String(hostWidget.agendaData.local_timezone || "") : ""
+  // Recomputed per minute, not per clock tick, so rows do not churn.
+  readonly property string nowMinute: nowIso.slice(0, 16) + ":00Z"
+  readonly property var groups: Model.groupEvents(
+    Model.searchEvents(Model.activeEvents(agendaData.events || [], nowMinute), searchQuery),
+    nowMinute,
+    { includeToday: searchQuery === "" && agendaData.status === "ok" }
+  )
+  // Keyboard order follows the rendered order (all-day first in each day).
+  readonly property var visibleEvents: Model.agendaOrder(groups)
   readonly property var calendars: hostWidget ? (hostWidget.agendaData.calendars || []) : []
   property string selectedEventKey: ""
   property var selectedEvent: null
@@ -55,6 +64,9 @@ Panel {
 
   function open() {
     if (hostWidget && hostWidget.refresh) hostWidget.refresh()
+    // Start on the first thing that matters: what is on now or next.
+    selectedEventKey = visibleEvents.length > 0 ? Model.eventKey(visibleEvents[0]) : ""
+    agendaFlick.contentY = 0
     root.controller.show()
   }
 
@@ -161,7 +173,7 @@ Panel {
 
   function moveSelectionByDay(direction) {
     if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
-    var index = Model.adjacentDayFirstEventIndex(visibleEvents, selectedEventIndex(), direction)
+    var index = Model.adjacentDayFirstEventIndex(visibleEvents, selectedEventIndex(), direction, nowIso)
     if (index >= 0) selectedEventKey = Model.eventKey(visibleEvents[index])
   }
 
@@ -206,9 +218,13 @@ Panel {
   function ensureAgendaItemVisible(item) {
     if (!item || !agendaFlick.visible) return
     var point = item.mapToItem(groupsColumn, 0, 0)
-    if (point.y < agendaFlick.contentY) agendaFlick.contentY = point.y
+    var maxY = Math.max(0, agendaFlick.contentHeight - agendaFlick.height)
+    // Leave room above for the day header the row sits under.
+    var top = selectedEventIndex() === 0 ? 0 : Math.max(0, point.y - Style.space(28))
+    if (top < agendaFlick.contentY) agendaFlick.contentY = top
     else if (point.y + item.height > agendaFlick.contentY + agendaFlick.height)
-      agendaFlick.contentY = Math.min(agendaFlick.contentHeight - agendaFlick.height, point.y + item.height - agendaFlick.height)
+      agendaFlick.contentY = Math.min(maxY, point.y + item.height - agendaFlick.height)
+    if (agendaFlick.contentY > maxY) agendaFlick.contentY = maxY
   }
 
   function showFirstEvent() {
@@ -216,7 +232,7 @@ Panel {
   }
 
   function selectToday() {
-    var index = Model.firstEventIndexForDate(visibleEvents, agendaData.generated_at || new Date().toISOString())
+    var index = Model.firstEventIndexForDate(visibleEvents, nowIso)
     if (index >= 0) selectedEventKey = Model.eventKey(visibleEvents[index])
   }
 
@@ -333,7 +349,7 @@ Panel {
   }
 
   function submitEditor(values) {
-    var args = Model.eventMutationArgs(editorMode, editorEvent, values, { series: editingSeries })
+    var args = Model.eventMutationArgs(editorMode, editorEvent, values, { series: editingSeries, localTimezone: localTimezone })
     if (args.length === 0) {
       mutationError = "Check the event fields"
       return
@@ -426,7 +442,7 @@ Panel {
     }
     editorMode = ""
     selectedEvent = null
-    selectedEventKey = ""
+    if (completed !== "edit") selectedEventKey = ""
     resetEditState()
     actionStatus = completed === "delete-this" ? "Occurrence removed" : (completed === "delete-following" ? "Later occurrences removed" : (completed === "delete-series" ? "All events deleted" : (completed === "delete" ? "Event deleted" : (completed === "edit" ? "Event updated" : "Event created"))))
     actionStatusTimer.restart()
@@ -439,9 +455,21 @@ Panel {
     Quickshell.execDetached(["xdg-open", String(url)])
   }
 
-  function joinEvent() {
+  function joinEvent(eventData) {
     if (mutationBusy || editLoadBusy) return
-    openUrl(Model.eventOpenUrl(selectedEvent))
+    var url = Model.eventOpenUrl(eventData || selectedEvent)
+    if (url === "") return
+    openUrl(url)
+    if (eventData) root.close()
+  }
+
+  function copyEventLink() {
+    if (mutationBusy || editLoadBusy) return
+    var url = Model.eventOpenUrl(selectedEvent)
+    if (url === "") return
+    Quickshell.execDetached(["wl-copy", "--", url])
+    actionStatus = "Copied link"
+    actionStatusTimer.restart()
   }
 
   function openMap() {
@@ -451,9 +479,9 @@ Panel {
 
   function copyEventDetails() {
     if (mutationBusy || editLoadBusy) return
-    var details = Model.eventDetailsText(selectedEvent)
+    var details = Model.eventDetailsText(selectedEvent, nowIso)
     if (!details) return
-    Quickshell.execDetached(["wl-copy", details])
+    Quickshell.execDetached(["wl-copy", "--", details])
     actionStatus = "Copied event details"
     actionStatusTimer.restart()
   }
@@ -466,7 +494,7 @@ Panel {
 
   Timer {
     id: actionStatusTimer
-    interval: 2000
+    interval: root.mutationError !== "" ? 6000 : 2200
     onTriggered: root.actionStatus = ""
   }
 
@@ -534,6 +562,8 @@ Panel {
         else if (!root.showingSettings && !root.showingEditor && (text === "e" || text === "E")) root.startEdit()
         else if (root.showingDetails && (text === "v" || text === "V")) root.joinEvent()
         else if (root.showingDetails && (text === "p" || text === "P")) root.copyEventDetails()
+        else if (root.showingDetails && (text === "u" || text === "U")) root.copyEventLink()
+        else if (!root.showingSubview && text === "o") root.joinEvent(root.focusedEvent())
         else if (root.showingDetails && (text === "g" || text === "G")) root.openChroncal()
         else if (root.showingDetails && (text === "y" || text === "Y")) root.rsvpEvent("ACCEPTED")
         else if (root.showingDetails && (text === "n" || text === "N")) root.rsvpEvent("DECLINED")
@@ -683,9 +713,10 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length === 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.visibleEvents.length === 0
             anchors.centerIn: parent
-            text: root.searchQuery !== "" ? "No matching events" : "No upcoming events"
+            anchors.verticalCenterOffset: root.groups.length > 0 ? Style.space(24) : 0
+            text: root.searchQuery !== "" ? "No matching events" : "Nothing else in the next " + Number(root.setting("lookaheadDays", 7)) + " days"
             color: Util.alpha(root.contentForeground, 0.66)
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.body
@@ -721,14 +752,42 @@ Panel {
                   width: groupsColumn.width
                   spacing: Style.space(4)
 
-                  Text {
+                  Item {
                     width: parent.width
-                    text: parent.groupData.label.toUpperCase()
-                    color: Util.alpha(root.contentForeground, 0.52)
+                    height: groupLabel.implicitHeight
+
+                    Text {
+                      id: groupLabel
+                      anchors.left: parent.left
+                      text: parent.parent.groupData.label.toUpperCase()
+                      color: parent.parent.groupData.today ? root.contentForeground : Util.alpha(root.contentForeground, 0.52)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      font.letterSpacing: 1
+                    }
+
+                    Text {
+                      anchors.right: parent.right
+                      anchors.baseline: groupLabel.baseline
+                      visible: parent.parent.groupData.label.indexOf(",") === -1
+                      text: parent.parent.groupData.detail
+                      color: Util.alpha(root.contentForeground, 0.42)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                    }
+                  }
+
+                  Text {
+                    visible: parent.groupData.events.length === 0
+                    width: parent.width
+                    leftPadding: Style.space(12)
+                    topPadding: Style.space(4)
+                    bottomPadding: Style.space(4)
+                    text: "No more events today"
+                    color: Util.alpha(root.contentForeground, 0.46)
                     font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    font.letterSpacing: 1
+                    font.pixelSize: Style.font.bodySmall
                   }
 
                   Repeater {
@@ -740,12 +799,14 @@ Panel {
                       width: groupsColumn.width
                       bar: root.bar
                       eventData: modelData
-                      nowIso: root.agendaData.generated_at || ""
+                      nowIso: root.nowIso
                       selected: root.selectedEventKey === Model.eventKey(modelData)
+                      busy: root.mutationBusy || root.editLoadBusy
                       onSelectedChanged: {
                         if (selected) Qt.callLater(function() { root.ensureAgendaItemVisible(eventRow) })
                       }
                       onActivated: function(eventData) { root.showEvent(eventData) }
+                      onJoinRequested: function(eventData) { root.joinEvent(eventData) }
                     }
                   }
                 }
@@ -759,11 +820,12 @@ Panel {
             anchors.fill: parent
             bar: root.bar
             eventData: root.selectedEvent || ({})
-            nowIso: root.agendaData.generated_at || ""
+            nowIso: root.nowIso
             actionStatus: root.actionStatus
             busy: root.mutationBusy || root.editLoadBusy
             showOpenInChroncal: Model.showOpenInChroncalEnabled(root.settings)
             onJoinRequested: root.joinEvent()
+            onCopyLinkRequested: root.copyEventLink()
             onMapRequested: root.openMap()
             onChroncalRequested: root.openChroncal()
             onEditRequested: root.startEdit()
@@ -781,6 +843,7 @@ Panel {
             eventData: root.editorEvent
             editingSeries: root.editingSeries
             calendars: root.calendars
+            localTimezone: root.localTimezone
             busy: root.mutationBusy
             externalError: root.mutationError
             onCanceled: root.cancelEditor()
@@ -802,7 +865,36 @@ Panel {
             showEventsWithoutParticipants: root.setting("showEventsWithoutParticipants", "On")
             showEventsWithoutLocation: root.setting("showEventsWithoutLocation", "On")
             showOpenInChroncal: root.setting("showOpenInChroncal", "Off")
+            showDeclinedEvents: root.setting("showDeclinedEvents", "On")
+            barHorizonHours: Number(root.setting("barHorizonHours", 0))
+            joinReminderMinutes: Number(root.setting("joinReminderMinutes", -1))
             onConfigurationChanged: function(values) { root.persistSettings(values) }
+          }
+
+          Rectangle {
+            id: agendaToast
+            z: 5
+            visible: root.actionStatus !== "" && !root.showingDetails && !root.showingEditor
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            width: Math.min(parent.width, toastText.implicitWidth + Style.space(24))
+            height: toastText.implicitHeight + Style.space(12)
+            radius: Style.cornerRadius
+            color: root.bar ? root.bar.background : Color.background
+            border.width: 1
+            border.color: Util.alpha(root.contentForeground, 0.2)
+
+            Text {
+              id: toastText
+              anchors.centerIn: parent
+              width: Math.min(implicitWidth, parent.parent.width - Style.space(24))
+              text: root.actionStatus
+              textFormat: Text.PlainText
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
           }
 
           ShortcutHelp {

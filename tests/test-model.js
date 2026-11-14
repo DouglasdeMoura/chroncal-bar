@@ -7,6 +7,12 @@ const model = { Date, Math, String, Number, Array, Object };
 vm.createContext(model);
 vm.runInContext(source, model, { filename: "Model.js" });
 
+// Model.js runs in its own realm, so its arrays and objects carry that
+// realm's prototypes; compare structure, not identity.
+const realmDeepEqual = assert.deepEqual;
+assert.deepEqual = (actual, expected, message) =>
+  realmDeepEqual(JSON.parse(JSON.stringify(actual)), JSON.parse(JSON.stringify(expected)), message);
+
 const events = [
   {
     id: 1,
@@ -147,7 +153,7 @@ assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "launch").map(ev
 assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "alice").map(event => event.id), [1]);
 assert.deepEqual(model.searchEvents([{ ...detailedEvent, calendar_name: "Work" }, events[1]], "work").map(event => event.id), [1]);
 assert.deepEqual(model.searchEvents([detailedEvent, events[1]], "  ").map(event => event.id), [1, 2]);
-assert.match(model.attendeeSummary(detailedEvent), /Alice · Accepted/);
+assert.match(model.attendeeSummary(detailedEvent), /Alice · Going/);
 const organizedEvent = {
   ...detailedEvent,
   attendees: [
@@ -155,9 +161,9 @@ const organizedEvent = {
     { name: "Bob", email: "bob@example.test", rsvp_status: "TENTATIVE", organizer: false }
   ]
 };
-assert.equal(model.attendeeSummary(organizedEvent), "Alice · Organizer\nBob · Tentative");
+assert.equal(model.attendeeSummary(organizedEvent), "Alice · Organizer\nBob · Maybe");
 assert.match(model.eventDetailsText(organizedEvent, "2026-08-15T12:00:00Z"), /Alice <alice@example.test> · Organizer/);
-assert.match(model.eventDetailsText(organizedEvent, "2026-08-15T12:00:00Z"), /Bob <bob@example.test> · Tentative/);
+assert.match(model.eventDetailsText(organizedEvent, "2026-08-15T12:00:00Z"), /Bob <bob@example.test> · Maybe/);
 assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /Current/);
 assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /Today, August 15/);
 assert.match(model.eventDetailsText(detailedEvent, "2026-08-15T12:00:00Z"), /11:30–12:30/);
@@ -398,6 +404,9 @@ const presentation = model.barPresentation({
 assert.deepEqual(JSON.parse(JSON.stringify(presentation.className)), ["in-progress", "overlap"]);
 assert.match(presentation.text, /Current/);
 assert.match(presentation.text, /Pairing/);
+assert.doesNotMatch(presentation.text, /[<&>]/);
+assert.match(presentation.html, /<font color="#ff3366">■<\/font> 30m left · Current/);
+assert.match(presentation.html, /<font color="#3366ff">■<\/font> Now · Pairing/);
 assert.match(presentation.tooltip, /11:30–12:30/);
 assert.equal(model.barPresentation({ status: "unavailable", events: [] }, 42).className, "unavailable");
 assert.equal(model.barPresentation({ status: "ok", generated_at: "2026-08-15T12:00:00Z", events: [] }, 42).className, "empty");
@@ -408,6 +417,7 @@ const futurePresentation = model.barPresentation({
   events: [{ ...events[0], title: "Monday planning", start_time: "2026-08-17T09:00:00Z", end_time: "2026-08-17T10:00:00Z" }]
 }, 42);
 assert.match(futurePresentation.text, /Mon 09:00/);
+assert.match(futurePresentation.html, /■<\/font> Mon 09:00/);
 const countdownPresentation = model.barPresentation({
   status: "ok",
   generated_at: "2026-08-15T12:00:00Z",
