@@ -1361,8 +1361,55 @@ function showOpenInChroncalEnabled(settings) {
 
 // Drops the dial-in blocks Google Meet and Microsoft Teams append to
 // invitations; the Join button already carries that link.
+function decodeEntities(value) {
+  return String(value || "").replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, function(entity, code) {
+    var named = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " " };
+    var lower = code.toLowerCase();
+    if (lower in named) return named[lower];
+    var number = lower.charAt(1) === "x" ? parseInt(lower.slice(2), 16) : (lower.charAt(0) === "#" ? parseInt(lower.slice(1), 10) : NaN);
+    return isFinite(number) && number > 0 && number < 0x110000 ? String.fromCodePoint(number) : entity;
+  });
+}
+
+function looksLikeHtml(value) {
+  return /<\/?(a|b|i|u|p|br|div|span|strong|em|ol|ul|li|h[1-6]|html|body|font)\b[^>]*>/i.test(String(value || ""));
+}
+
+// Google stores rich notes as HTML. Turn them into text, keeping each link
+// as a Markdown-style [label](url) so the panel can show the label.
+function htmlToNotesText(value) {
+  var text = String(value || "");
+  if (!looksLikeHtml(text)) return text;
+  var links = [];
+  // Links become placeholders so tag stripping and entity decoding run
+  // once over the surrounding text and never touch a decoded label.
+  text = text.replace(/\r\n/g, "\n").replace(/\u0000/g, "");
+  text = text.replace(/<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a\s*>/gi,
+    function(match, doubleQuoted, singleQuoted, bare, inner) {
+      var href = decodeEntities(doubleQuoted || singleQuoted || bare || "").trim();
+      var label = decodeEntities(inner.replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+      var out;
+      if (!/^(https?:\/\/|mailto:)\S+$/i.test(href)) out = label;
+      else if (label === "" || label === href) out = href;
+      else out = "[" + label.replace(/[\[\]]/g, "") + "](" + href.replace(/[()]/g, encodeURIComponent) + ")";
+      links.push(out);
+      return "\u0000" + (links.length - 1) + "\u0000";
+    });
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+  text = text.replace(/<li\b[^>]*>/gi, "\n• ");
+  text = text.replace(/<\/(p|div|ol|ul|h[1-6])\s*>/gi, "\n");
+  text = decodeEntities(text.replace(/<[^>]*>/g, ""));
+  text = text.replace(/\u0000(\d+)\u0000/g, function(match, index) { return links[Number(index)]; });
+  return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n");
+}
+
+// Plain-text form for copying: [label](url) becomes "label (url)".
+function notesPlainText(value) {
+  return String(value || "").replace(/\[([^\]\n]+)\]\(((?:https?:\/\/|mailto:)[^\s)]+)\)/g, "$1 ($2)");
+}
+
 function cleanDescription(value) {
-  var text = splitVideoLine(value).text;
+  var text = splitVideoLine(htmlToNotesText(value)).text;
   text = text.replace(/-::~[:~]*::-[\s\S]*?-::~[:~]*::-/g, "");
   text = text.replace(/_{30,}[\s\S]*?Microsoft Teams[\s\S]*?_{30,}/g, "");
   return text.replace(/\n{3,}/g, "\n\n").trim();
@@ -1373,11 +1420,20 @@ function eventNotesHtml(event, linkColor) {
   if (text === "") return "";
   var email = eventJoinEmail(event);
   var color = htmlColor(linkColor);
-  var pattern = /https?:\/\/[^\s<>()]+/ig;
+  var pattern = /\[([^\]\n]+)\]\(((?:https?:\/\/|mailto:)[^\s)]+)\)|https?:\/\/[^\s<>()]+/ig;
   var html = "";
   var lastIndex = 0;
   var match;
   while ((match = pattern.exec(text)) !== null) {
+    if (match[1] !== undefined) {
+      html += escapeHtml(text.slice(lastIndex, match.index)).replace(/\n/g, "<br/>");
+      var linkHref = /^mailto:/i.test(match[2]) ? match[2] : withGoogleAuthuser(match[2], email);
+      var linkLabel = escapeHtml(match[1]);
+      if (color !== "") linkLabel = '<font color="' + color + '">' + linkLabel + "</font>";
+      html += '<a href="' + escapeHtml(linkHref) + '">' + linkLabel + "</a>";
+      lastIndex = match.index + match[0].length;
+      continue;
+    }
     var raw = match[0];
     var trailing = "";
     var cleaned = raw.replace(/[.,;:!?]+$/, function(punctuation) {
@@ -1503,7 +1559,7 @@ function eventDetailsText(event, nowValue) {
   lines.push(formatEventRange(event));
   if (event.calendar_name) lines.push(String(event.calendar_name));
   if (event.location) lines.push(String(event.location));
-  var notes = cleanDescription(event.description);
+  var notes = notesPlainText(cleanDescription(event.description));
   if (notes) lines.push(notes);
   var link = eventOpenUrl(event);
   if (link && notes.indexOf(link) === -1) lines.push(link);

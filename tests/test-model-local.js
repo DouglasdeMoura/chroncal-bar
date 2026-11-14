@@ -195,4 +195,19 @@ assert.equal(model.availabilityText([{ detail: "x", slots: [] }], "", now), "");
 // A meeting that ends at midnight is a one-day event.
 assert.equal(model.formatEventDate({ all_day: false, start_time: "2026-11-14T02:00:00Z", end_time: "2026-11-14T03:00:00Z" }, now), "Today, November 13");
 assert.equal(model.formatEventDate({ all_day: false, start_time: "2026-11-14T02:00:00Z", end_time: "2026-11-14T03:30:00Z" }, now), "Today, November 13 – Tomorrow, November 14");
+// Google rich-text notes: HTML links keep their label and stay clickable.
+const rich = {
+  calendar_owner_email: me, title: "1:1", start_time: soon.start_time, end_time: soon.end_time,
+  description: '<a href="https://docs.google.com/document/d/abc/edit?tab=t.0" class="pastedDriveLink-0">Douglas/Erin 1:1 Agenda</a>\n\n-::~:~::~:~::-\nJoin with Google Meet: https://meet.google.com/iwj-ook\n-::~:~::~:~::-'
+};
+assert.equal(model.cleanDescription(rich.description), "[Douglas/Erin 1:1 Agenda](https://docs.google.com/document/d/abc/edit?tab=t.0)");
+assert.equal(model.eventNotesHtml(rich, ""), '<a href="https://docs.google.com/document/d/abc/edit?tab=t.0&amp;authuser=me%40example.test">Douglas/Erin 1:1 Agenda</a>');
+assert.match(model.eventDetailsText(rich, now), /Douglas\/Erin 1:1 Agenda \(https:\/\/docs\.google\.com\/document\/d\/abc\/edit\?tab=t\.0\)/);
+assert.equal(model.eventJoinLabel(rich), "Join Google Meet");
+assert.equal(model.cleanDescription("<p>Hi&nbsp;<b>team</b></p><ol><li>One &amp; two</li><li><a href=\"https://x.test/a\">https://x.test/a</a></li></ol>"), "Hi team\n\n• One & two\n• https://x.test/a");
+// Unsafe schemes lose the link but keep the label; markup cannot leak out.
+assert.equal(model.cleanDescription('<a href="javascript:alert(1)">click</a>'), "click");
+assert.equal(model.eventNotesHtml({ description: '<a href="https://x.test/?a=1">&lt;img src=x&gt;</a>' }, ""), '<a href="https://x.test/?a=1">&lt;img src=x&gt;</a>');
+// Plain-text notes are untouched, including stray angle brackets.
+assert.equal(model.cleanDescription("a < b and c > d"), "a < b and c > d");
 console.log("local-timezone model tests: ok");
