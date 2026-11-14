@@ -166,7 +166,9 @@ function formatInspectorDate(date, now) {
 function eventInclusiveEnd(event) {
   var end = eventEndDate(event);
   if (!end) return eventStartDate(event);
-  if (event && event.all_day === true) return new Date(end.getTime() - 1);
+  // Ends are exclusive: a 23:00–00:00 meeting stays on its start day.
+  var start = eventStartDate(event);
+  if (start && end > start) return new Date(end.getTime() - 1);
   return end;
 }
 
@@ -638,7 +640,8 @@ function eventEditorValues(event, nowValue) {
       allDay: event.all_day === true,
       calendar: String(event.calendar_name || ""),
       location: String(event.location || ""),
-      description: String(event.description || ""),
+      description: splitVideoLine(event.description).text,
+      video: splitVideoLine(event.description).url,
       recurrence: parseRecurrenceRule(event.recurrence_rule, dateInputValue(event.start_time, event.all_day === true))
     };
   }
@@ -655,6 +658,7 @@ function eventEditorValues(event, nowValue) {
     calendar: "",
     location: "",
     description: "",
+    video: "",
     recurrence: defaultRecurrenceForm(dateInputValue(nextHour, false))
   };
 }
@@ -666,6 +670,7 @@ function validateEventForm(values) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(form.date || ""))) errors.push("Date must use YYYY-MM-DD");
   if (form.allDay !== true && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(form.time || ""))) errors.push("Time must use HH:MM");
   if (form.allDay !== true && !/^(?=.+)(?:\d+h)?(?:\d+m)?$/.test(String(form.duration || ""))) errors.push("Duration must look like 30m or 1h30m");
+  if (!isVideoUrl(form.video)) errors.push("Video call must be an https:// link");
   errors = errors.concat(validateRecurrenceForm(form.recurrence, form.date));
   return errors;
 }
@@ -1070,8 +1075,9 @@ function eventMutationArgs(mode, event, values, options) {
     }
     if (String(form.location || "") !== String(original.location || ""))
       args.push("--location", String(form.location || ""));
-    if (String(form.description || "") !== String(original.description || ""))
-      args.push("--description", String(form.description || ""));
+    var nextDescription = composeDescription(form.description, form.video);
+    if (nextDescription !== composeDescription(original.description, original.video))
+      args.push("--description", nextDescription);
     if (canEditRecurrence(event) && form.recurrence) {
       var nextRule = buildRecurrenceRule(form.recurrence, form.date);
       var storedRule = String(event.recurrence_rule || "");
@@ -1085,7 +1091,7 @@ function eventMutationArgs(mode, event, values, options) {
   pushOptionalFlag(args, "--calendar", form.calendar);
   if (form.allDay !== true) args.push("--time", String(form.time), "--duration", String(form.duration));
   pushOptionalFlag(args, "--location", form.location);
-  pushOptionalFlag(args, "--description", form.description);
+  pushOptionalFlag(args, "--description", composeDescription(form.description, form.video));
   var createRule = buildRecurrenceRule(form.recurrence, form.date);
   if (createRule !== "") args.push("--recurrence-rule", createRule);
   args.push("--", title);
@@ -1265,6 +1271,8 @@ function eventConferenceUrl(event) {
   if (!event) return "";
   var explicit = String(event.conference_url || "");
   if (/^https?:\/\//i.test(explicit)) return rewriteOpenUrl(explicit, event);
+  var attached = splitVideoLine(event.description).url;
+  if (attached !== "") return rewriteOpenUrl(attached, event);
   var url = String(event.url || "");
   if (conferenceProvider(url) !== "") return rewriteOpenUrl(url, event);
   var found = firstConferenceUrlInText(event.location) || firstConferenceUrlInText(event.description);
@@ -1354,7 +1362,7 @@ function showOpenInChroncalEnabled(settings) {
 // Drops the dial-in blocks Google Meet and Microsoft Teams append to
 // invitations; the Join button already carries that link.
 function cleanDescription(value) {
-  var text = String(value || "").replace(/\r\n/g, "\n");
+  var text = splitVideoLine(value).text;
   text = text.replace(/-::~[:~]*::-[\s\S]*?-::~[:~]*::-/g, "");
   text = text.replace(/_{30,}[\s\S]*?Microsoft Teams[\s\S]*?_{30,}/g, "");
   return text.replace(/\n{3,}/g, "\n\n").trim();
@@ -1504,6 +1512,180 @@ function eventDetailsText(event, nowValue) {
     var identity = attendeeDisplayName(attendee);
     var email = attendee.email && identity !== attendee.email ? " <" + attendee.email + ">" : "";
     lines.push(identity + email + " · " + attendeeStatusLabel(attendee));
+  });
+  return lines.join("\n");
+}
+
+// Video calls the editor attaches live on one "Video call: <url>" line in
+// the notes: Google drops the iCalendar URL property on sync, but keeps the
+// description, and guests see the link there too.
+var VIDEO_LINE = /^Video call: (https?:\/\/\S+)\s*$/;
+
+function splitVideoLine(description) {
+  var lines = String(description || "").replace(/\r\n/g, "\n").split("\n");
+  var url = "";
+  var kept = [];
+  for (var i = 0; i < lines.length; i++) {
+    var match = url === "" ? VIDEO_LINE.exec(lines[i]) : null;
+    if (match) url = match[1];
+    else kept.push(lines[i]);
+  }
+  return { url: url, text: kept.join("\n").replace(/\s+$/, "") };
+}
+
+function composeDescription(text, videoUrl) {
+  var body = String(text || "").replace(/\r\n/g, "\n").replace(/\s+$/, "");
+  var url = String(videoUrl || "").trim();
+  if (url === "") return body;
+  return body === "" ? "Video call: " + url : body + "\n\nVideo call: " + url;
+}
+
+function isVideoUrl(value) {
+  var text = String(value || "").trim();
+  return text === "" || /^https?:\/\/[^\s]+\.[^\s]+$/i.test(text);
+}
+
+// Label for the editor's quick-add button, e.g. "Add Zoom".
+function videoLinkLabel(url) {
+  var provider = conferenceProvider(url);
+  return provider === "" ? "Add my link" : "Add " + provider;
+}
+
+// ---- Mini month calendar ----
+
+// Day keys that have at least one event, with up to three calendar colors
+// each. Multi-day events mark every local day they overlap.
+function eventDayMarkers(events) {
+  var markers = {};
+  var source = events || [];
+  for (var i = 0; i < source.length; i++) {
+    var event = source[i];
+    var start = eventStartDate(event);
+    var end = eventEndDate(event);
+    if (!start) continue;
+    if (!end || end <= start) end = new Date(start.getTime() + 1);
+    var cursor = startOfLocalDay(start);
+    for (var guard = 0; guard < 62 && cursor < end; guard++) {
+      var key = dateKey(cursor);
+      var colors = markers[key] || (markers[key] = []);
+      var color = calendarColor(event);
+      if (colors.length < 3 && colors.indexOf(color) < 0) colors.push(color);
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
+    }
+  }
+  return markers;
+}
+
+// First agenda row listed on or after a day (the panel scrolls there).
+function firstEventIndexOnOrAfterDay(events, dayKeyValue, nowValue) {
+  var now = parseDate(nowValue) || new Date();
+  var source = events || [];
+  for (var i = 0; i < source.length; i++)
+    if (eventAgendaDayKey(source[i], now) >= String(dayKeyValue)) return i;
+  return -1;
+}
+
+function miniCalendarWeeks(year, month, weekStart, todayKey, selectedKey, markers, rangeFrom, rangeTo) {
+  var weeks = monthGrid(year, month, weekStart, todayKey, selectedKey);
+  var marks = markers || {};
+  for (var w = 0; w < weeks.length; w++) {
+    for (var d = 0; d < weeks[w].length; d++) {
+      var day = weeks[w][d];
+      day.colors = marks[day.key] || [];
+      day.loaded = (!rangeFrom || day.key >= rangeFrom) && (!rangeTo || day.key <= rangeTo);
+      day.past = day.key < String(todayKey || "");
+    }
+  }
+  // Drop a trailing week that lies wholly in the next month.
+  if (weeks.length === 6 && !weeks[5].some(function(day) { return day.inMonth; })) weeks.pop();
+  return weeks;
+}
+
+// ---- Share availability ----
+
+function isBusyEvent(event) {
+  if (!event) return false;
+  if (String(event.status || "").toUpperCase() === "CANCELLED") return false;
+  if (String(event.transp || "OPAQUE").toUpperCase() === "TRANSPARENT") return false;
+  return !isDeclined(event);
+}
+
+function clampHour(value, fallback) {
+  var number = Number(value);
+  if (!isFinite(number)) return fallback;
+  return Math.max(0, Math.min(24, Math.round(number)));
+}
+
+// Free time inside working hours over the next `days` working days.
+// options: days, startHour, endHour, minMinutes, weekends, rangeTo (last
+// loaded day key; later days are unknown and never offered).
+function availabilitySlots(events, nowValue, options) {
+  var opts = options || {};
+  var now = parseDate(nowValue) || new Date();
+  var wanted = Math.max(1, Math.min(14, Number(opts.days) || 3));
+  var startHour = clampHour(opts.startHour, 9);
+  var endHour = clampHour(opts.endHour, 18);
+  var minimum = Math.max(5, Number(opts.minMinutes) || 30) * 60000;
+  var weekends = opts.weekends === true;
+  var rangeTo = String(opts.rangeTo || "");
+  if (endHour <= startHour) return [];
+
+  var busy = [];
+  (events || []).forEach(function(event) {
+    if (!isBusyEvent(event)) return;
+    var start = eventStartDate(event);
+    var end = eventEndDate(event);
+    if (start && end && end > start) busy.push({ start: start.getTime(), end: end.getTime() });
+  });
+  busy.sort(function(left, right) { return left.start - right.start; });
+
+  var result = [];
+  var cursor = startOfLocalDay(now);
+  for (var guard = 0; guard < 60 && result.length < wanted; guard++) {
+    var key = dateKey(cursor);
+    if (rangeTo !== "" && key > rangeTo) break;
+    var weekday = cursor.getDay();
+    var dayStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), startHour).getTime();
+    var dayEnd = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), endHour).getTime();
+    // Today starts at the next quarter hour.
+    var quarter = 15 * 60000;
+    var from = Math.max(dayStart, Math.ceil(now.getTime() / quarter) * quarter);
+    if ((weekends || (weekday !== 0 && weekday !== 6)) && from < dayEnd) {
+      var slots = [];
+      var free = from;
+      for (var b = 0; b < busy.length && free < dayEnd; b++) {
+        if (busy[b].end <= free || busy[b].start >= dayEnd) continue;
+        if (busy[b].start - free >= minimum) slots.push({ start: new Date(free), end: new Date(busy[b].start) });
+        free = Math.max(free, busy[b].end);
+      }
+      if (dayEnd - free >= minimum) slots.push({ start: new Date(free), end: new Date(dayEnd) });
+      result.push({ key: key, label: dayLabel(cursor, now), detail: shortDateLabel(cursor), slots: slots });
+    }
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
+  }
+  return result;
+}
+
+function slotLabel(slot) {
+  return formatTime(slot.start) + "–" + formatTime(slot.end);
+}
+
+function gmtOffsetLabel(date) {
+  var offset = -(date || new Date()).getTimezoneOffset();
+  var sign = offset >= 0 ? "+" : "-";
+  var hours = Math.floor(Math.abs(offset) / 60);
+  var minutes = Math.abs(offset) % 60;
+  return "GMT" + sign + hours + (minutes ? ":" + pad2(minutes) : "");
+}
+
+function availabilityText(days, timezone, nowValue) {
+  var withSlots = (days || []).filter(function(day) { return day.slots.length > 0; });
+  if (withSlots.length === 0) return "";
+  var now = parseDate(nowValue) || new Date();
+  var zone = String(timezone || "");
+  var lines = ["My availability (" + (zone !== "" ? zone.replace(/_/g, " ") + ", " : "") + gmtOffsetLabel(now) + "):"];
+  withSlots.forEach(function(day) {
+    lines.push("• " + day.detail + ": " + day.slots.map(slotLabel).join(", "));
   });
   return lines.join("\n");
 }

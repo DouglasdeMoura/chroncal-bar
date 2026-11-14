@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "douglasdemoura.chroncal-bar",
   "name": "Chroncal Bar",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "Douglas Moura",
   "license": "MIT",
-  "description": "Notion Calendar-style menu-bar agenda for Chroncal: next meeting, one-click join, search, RSVP, and event editing.",
+  "description": "Notion Calendar-style menu-bar agenda for Chroncal: next meeting, one-click join, mini calendar, share availability, RSVP, and event editing.",
   "kinds": [
     "bar-widget"
   ],
@@ -148,6 +148,72 @@
         "step": 1,
         "defaultValue": -1,
         "description": "Send a notification with a Join action this many minutes before timed events; -1 turns alerts off."
+      },
+      {
+        "key": "showMiniCalendar",
+        "type": "enum",
+        "label": "Show mini calendar above the agenda",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "Off",
+        "description": "Month grid with event dots; click a day to jump the agenda there."
+      },
+      {
+        "key": "personalMeetingUrl",
+        "type": "string",
+        "label": "Personal meeting link",
+        "defaultValue": "",
+        "description": "Reusable Zoom, Meet, or other room link offered as one click when creating events."
+      },
+      {
+        "key": "availabilityDays",
+        "type": "integer",
+        "label": "Share availability: days",
+        "min": 1,
+        "max": 14,
+        "step": 1,
+        "defaultValue": 3,
+        "description": "Working days included when sharing availability."
+      },
+      {
+        "key": "availabilityStartHour",
+        "type": "integer",
+        "label": "Share availability: start hour",
+        "min": 0,
+        "max": 23,
+        "step": 1,
+        "defaultValue": 9
+      },
+      {
+        "key": "availabilityEndHour",
+        "type": "integer",
+        "label": "Share availability: end hour",
+        "min": 1,
+        "max": 24,
+        "step": 1,
+        "defaultValue": 18
+      },
+      {
+        "key": "availabilityMinMinutes",
+        "type": "integer",
+        "label": "Share availability: shortest slot (minutes)",
+        "min": 15,
+        "max": 240,
+        "step": 15,
+        "defaultValue": 30
+      },
+      {
+        "key": "availabilityWeekends",
+        "type": "enum",
+        "label": "Share availability: include weekends",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "Off",
+        "description": "Offer Saturday and Sunday slots too."
       }
     ]
   }

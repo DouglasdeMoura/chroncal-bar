@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls as QQC
+import Quickshell
 import qs.Commons
 import qs.Ui
 import "../Model.js" as Model
@@ -16,6 +17,10 @@ Flickable {
   property string localTimezone: ""
   property bool busy: false
   property string externalError: ""
+  // Reusable personal room (Zoom, Meet, Whereby…) offered as one click.
+  property string personalMeetingUrl: ""
+  // Create-mode overrides, e.g. a slot picked in Share availability.
+  property var prefill: null
 
   property string titleValue: ""
   property string dateValue: ""
@@ -25,6 +30,7 @@ Flickable {
   property string calendarValue: ""
   property string locationValue: ""
   property string descriptionValue: ""
+  property string videoValue: ""
   property string repeatPreset: "none"
   property int repeatInterval: 1
   property string repeatFreq: "WEEKLY"
@@ -63,6 +69,7 @@ Flickable {
       calendar: calendarValue,
       location: locationValue,
       description: descriptionValue,
+      video: videoValue,
       recurrence: {
         preset: repeatPreset,
         interval: repeatInterval,
@@ -84,6 +91,7 @@ Flickable {
 
   function initialize() {
     var initial = Model.eventEditorValues(editorMode === "edit" ? eventData : null)
+    if (editorMode !== "edit" && prefill) for (var key in prefill) initial[key] = prefill[key]
     titleValue = initial.title
     dateValue = initial.date
     timeValue = initial.time
@@ -92,6 +100,7 @@ Flickable {
     calendarValue = initial.calendar || defaultCalendarName()
     locationValue = initial.location
     descriptionValue = initial.description
+    videoValue = initial.video || ""
     var rec = initial.recurrence || Model.defaultRecurrenceForm(initial.date)
     repeatPreset = rec.preset
     repeatInterval = rec.interval
@@ -546,6 +555,46 @@ Flickable {
       text: root.locationValue
       placeholderText: "Optional"
       onTextEdited: root.locationValue = text
+    }
+
+    FieldLabel { text: "VIDEO CALL" }
+    Row {
+      width: parent.width
+      spacing: Style.space(8)
+
+      FormField {
+        id: videoField
+        width: parent.width - (videoButtons.visible ? videoButtons.width + parent.spacing : 0)
+        text: root.videoValue
+        placeholderText: "Paste a Meet, Zoom or Teams link"
+        inputMethodHints: Qt.ImhUrlCharactersOnly
+        onTextEdited: root.videoValue = text.trim()
+      }
+
+      Row {
+        id: videoButtons
+        visible: root.videoValue === ""
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(6)
+
+        FormButton {
+          visible: root.personalMeetingUrl !== ""
+          text: Model.videoLinkLabel(root.personalMeetingUrl)
+          tooltipText: root.personalMeetingUrl
+          fontSize: Style.font.caption
+          onClicked: root.videoValue = root.personalMeetingUrl
+        }
+
+        FormButton {
+          text: "New Meet"
+          tooltipText: "Open meet.google.com/new, then paste the link here"
+          fontSize: Style.font.caption
+          onClicked: {
+            Quickshell.execDetached(["xdg-open", "https://meet.google.com/new"])
+            videoField.forceActiveFocus()
+          }
+        }
+      }
     }
 
     FieldLabel { text: "NOTES" }

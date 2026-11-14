@@ -60,10 +60,16 @@ render() {
       {text: "", class: "unavailable", tooltip: "chroncal unavailable"}
     else
       (.generated_at | fromdateiso8601) as $now
-      | .events as $events
+      # Declined invitations never anchor the bar or appear in the tooltip.
+      | [.events[] | . as $e
+          | select(((.attendees // []) | any(
+              ((.email // "") | ascii_downcase) == (($e.calendar_owner_email // "") | ascii_downcase)
+              and ($e.calendar_owner_email // "") != ""
+              and ((.rsvp_status // "") | ascii_upcase) == "DECLINED")) | not)] as $events
       | ($events
           | if length == 0 then "No events today" else (map(event_line(.)) | join("<br>")) end) as $tooltip
-      | ($events[0] // null) as $event
+      # A timed meeting beats an all-day event, which sorts first by date.
+      | ((first($events[] | select(.all_day | not))) // $events[0] // null) as $event
       | if $event == null then
           {text: "", class: "empty", tooltip: html($tooltip)}
         elif $event.all_day then

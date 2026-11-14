@@ -40,7 +40,23 @@ Panel {
   readonly property bool showingDetails: selectedEvent !== null && !showingEditor
   property bool showingSettings: false
   property bool showingHelp: false
-  readonly property bool showingSubview: showingDetails || showingEditor || showingSettings || showingHelp
+  property bool showingAvailability: false
+  readonly property bool showingSubview: showingDetails || showingEditor || showingSettings || showingHelp || showingAvailability
+  readonly property bool showingMiniCalendar: setting("showMiniCalendar", "Off") === "On"
+  property var editorPrefill: null
+  // Free/busy uses every visible calendar, not just the agenda filters.
+  readonly property var availabilityDays: Model.availabilitySlots(
+    hostWidget && hostWidget.agendaData ? (hostWidget.agendaData.events || []) : [],
+    nowMinute,
+    {
+      days: Number(setting("availabilityDays", 3)),
+      startHour: Number(setting("availabilityStartHour", 9)),
+      endHour: Number(setting("availabilityEndHour", 18)),
+      minMinutes: Number(setting("availabilityMinMinutes", 30)),
+      weekends: setting("availabilityWeekends", "Off") === "On",
+      rangeTo: hostWidget && hostWidget.agendaData && hostWidget.agendaData.range ? String(hostWidget.agendaData.range.to || "") : ""
+    }
+  )
   property bool mutationBusy: false
   property string mutationKind: ""
   property string mutationError: ""
@@ -79,6 +95,7 @@ Panel {
     root.editorMode = ""
     root.showingSettings = false
     root.showingHelp = false
+    root.showingAvailability = false
     root.resetEditState()
     root.pendingDeleteEvent = null
     deleteConfirm.opened = false
@@ -102,6 +119,7 @@ Panel {
     editorMode = ""
     showingSettings = false
     showingHelp = false
+    showingAvailability = false
     actionStatus = ""
     resetEditState()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -114,6 +132,7 @@ Panel {
     editorMode = ""
     showingSettings = false
     showingHelp = false
+    showingAvailability = false
     actionStatus = ""
     resetEditState()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -123,6 +142,7 @@ Panel {
     selectedEvent = null
     editorMode = ""
     showingHelp = false
+    showingAvailability = false
     showingSettings = showingSettings ? false : true
     resetEditState()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -157,7 +177,7 @@ Panel {
   }
 
   function moveSelection(step) {
-    if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingHelp || showingAvailability || visibleEvents.length === 0) return
     var current = selectedEventIndex()
     var next = current < 0 ? (step > 0 ? 0 : visibleEvents.length - 1) : Model.clampSelection(current + step, visibleEvents.length)
     selectedEventKey = Model.eventKey(visibleEvents[next])
@@ -172,7 +192,7 @@ Panel {
   }
 
   function moveSelectionByDay(direction) {
-    if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingHelp || showingAvailability || visibleEvents.length === 0) return
     var index = Model.adjacentDayFirstEventIndex(visibleEvents, selectedEventIndex(), direction, nowIso)
     if (index >= 0) selectedEventKey = Model.eventKey(visibleEvents[index])
   }
@@ -193,13 +213,13 @@ Panel {
   }
 
   function activateSelection() {
-    if (showingDetails || showingSettings || showingEditor || showingHelp || visibleEvents.length === 0) return
+    if (showingDetails || showingSettings || showingEditor || showingHelp || showingAvailability || visibleEvents.length === 0) return
     var current = selectedEventIndex()
     showEvent(visibleEvents[current < 0 ? 0 : current])
   }
 
   function beginSearch() {
-    if (showingDetails || showingSettings || showingEditor || showingHelp || agendaData.status !== "ok") return
+    if (showingDetails || showingSettings || showingEditor || showingHelp || showingAvailability || agendaData.status !== "ok") return
     searching = true
     Qt.callLater(function() { searchField.forceActiveFocus() })
   }
@@ -240,6 +260,7 @@ Panel {
     selectedEvent = null
     editorMode = ""
     showingSettings = false
+    showingAvailability = false
     showingHelp = showingHelp ? false : true
     resetEditState()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -247,14 +268,68 @@ Panel {
 
   onVisibleEventsChanged: syncSelectionToSearch()
 
+  function toggleAvailability() {
+    selectedEvent = null
+    editorMode = ""
+    showingSettings = false
+    showingHelp = false
+    resetEditState()
+    resetSearch()
+    showingAvailability = showingAvailability ? false : true
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function copyAvailability() {
+    var text = Model.availabilityText(availabilityDays, localTimezone, nowMinute)
+    if (text === "") {
+      actionStatus = "No free time to share"
+    } else {
+      Quickshell.execDetached(["wl-copy", "--", text])
+      actionStatus = "Copied availability"
+    }
+    actionStatusTimer.restart()
+  }
+
+  function bookSlot(day, slot) {
+    var minutes = Math.round((slot.end.getTime() - slot.start.getTime()) / 60000)
+    startCreate({
+      date: day.key,
+      time: Model.formatTime(slot.start),
+      duration: minutes >= 30 ? "30m" : minutes + "m",
+      allDay: false
+    })
+  }
+
+  function toggleMiniCalendar() {
+    persistSettings({ showMiniCalendar: showingMiniCalendar ? "Off" : "On" })
+  }
+
+  // Mini calendar click: select the first event listed on or after the day.
+  function jumpToDay(key) {
+    var index = Model.firstEventIndexOnOrAfterDay(visibleEvents, key, nowMinute)
+    if (index < 0) {
+      actionStatus = "Nothing scheduled from " + Model.shortDateLabel(Model.localDateFromKey(key))
+      actionStatusTimer.restart()
+      return
+    }
+    var target = visibleEvents[index]
+    if (Model.eventDateKey(target, nowMinute) !== key) {
+      actionStatus = "Nothing on " + Model.shortDateLabel(Model.localDateFromKey(key))
+      actionStatusTimer.restart()
+    }
+    selectedEventKey = Model.eventKey(target)
+  }
+
   function refresh() {
     if (hostWidget && hostWidget.refresh) hostWidget.refresh()
   }
 
-  function startCreate() {
+  function startCreate(prefill) {
     selectedEvent = null
     showingSettings = false
     showingHelp = false
+    showingAvailability = false
+    editorPrefill = prefill || null
     mutationError = ""
     resetEditState()
     editorMode = "create"
@@ -520,7 +595,7 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(430))
-    contentHeight: panel.fittedContentHeight(Style.space(520))
+    contentHeight: panel.fittedContentHeight(Style.space(root.showingMiniCalendar ? 660 : 520))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -532,14 +607,15 @@ Panel {
           else if (dy !== 0) deleteConfirm.cycle(dy)
           return
         }
-        if (root.showingDetails || root.showingSettings || root.showingEditor || root.showingHelp) return
+        if (root.showingDetails || root.showingSettings || root.showingEditor || root.showingHelp || root.showingAvailability) return
         if (dy !== 0) root.moveSelection(dy)
         else if (dx !== 0) root.moveSelectionByDay(dx)
       }
       onCloseRequested: root.handleClose()
       onActivateRequested: {
         if (deleteConfirm.opened) deleteConfirm.activate()
-        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp) root.activateSelection()
+        else if (root.showingAvailability) root.copyAvailability()
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && !root.showingAvailability) root.activateSelection()
       }
       onTabRequested: function(direction) {
         if (deleteConfirm.opened) deleteConfirm.cycle(direction)
@@ -558,6 +634,8 @@ Panel {
         else if (text === "/") root.beginSearch()
         else if (text === "," || text === "C") root.toggleSettings()
         else if (text === "c") root.startCreate()
+        else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && text === "a") root.toggleAvailability()
+        else if (!root.showingSubview && text === "m") root.toggleMiniCalendar()
         else if (!root.showingDetails && !root.showingSettings && !root.showingEditor && (text === "t" || text === "T")) root.selectToday()
         else if (!root.showingSettings && !root.showingEditor && (text === "e" || text === "E")) root.startEdit()
         else if (root.showingDetails && (text === "v" || text === "V")) root.joinEvent()
@@ -587,7 +665,7 @@ Panel {
           Text {
             width: parent.width - headerActions.width
             anchors.verticalCenter: parent.verticalCenter
-            text: root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : (root.showingHelp ? "SHORTCUTS" : "UPCOMING")))
+            text: root.showingEditor ? (root.editorMode === "edit" ? "EDIT EVENT" : "NEW EVENT") : (root.showingDetails ? "EVENT DETAILS" : (root.showingSettings ? "SETTINGS" : (root.showingHelp ? "SHORTCUTS" : (root.showingAvailability ? "SHARE AVAILABILITY" : "UPCOMING"))))
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
@@ -611,6 +689,24 @@ Panel {
                 else if (root.showingEditor) root.cancelEditor()
                 else root.backToAgenda()
               }
+            }
+
+            PanelActionButton {
+              visible: !root.showingSubview
+              iconText: "󰃭"
+              tooltipText: root.showingMiniCalendar ? "Hide mini calendar (m)" : "Show mini calendar (m)"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.toggleMiniCalendar()
+            }
+
+            PanelActionButton {
+              visible: !root.showingSubview
+              iconText: "󰃰"
+              tooltipText: "Share availability (a)"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onClicked: root.toggleAvailability()
             }
 
             PanelActionButton {
@@ -652,12 +748,41 @@ Panel {
           width: parent.width
           height: Math.max(0, parent.height - y)
 
+          MiniCalendar {
+            id: miniCalendar
+            visible: root.showingMiniCalendar && !root.showingSubview && root.agendaData.status === "ok"
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: visible ? implicitHeight : 0
+            foreground: root.contentForeground
+            fontFamily: root.contentFontFamily
+            events: root.agendaData.events || []
+            todayKey: root.nowMinute !== "" ? Model.eventDateKey({ start_time: root.nowMinute }) : ""
+            selectedKey: root.selectedEventKey !== "" && root.selectedEventIndex() >= 0
+              ? Model.eventDateKey(root.visibleEvents[root.selectedEventIndex()], root.nowMinute) : ""
+            rangeFrom: root.agendaData.range ? String(root.agendaData.range.from || "") : ""
+            rangeTo: root.agendaData.range ? String(root.agendaData.range.to || "") : ""
+            onDaySelected: function(key) { root.jumpToDay(key) }
+          }
+
+          Rectangle {
+            id: miniCalendarRule
+            visible: miniCalendar.visible
+            anchors.top: miniCalendar.bottom
+            anchors.topMargin: visible ? Style.space(8) : 0
+            width: parent.width
+            height: visible ? 1 : 0
+            color: Util.alpha(root.contentForeground, 0.08)
+          }
+
           TextField {
             id: searchField
-            visible: root.searching && !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok"
+            visible: root.searching && !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && !root.showingAvailability && root.agendaData.status === "ok"
             enabled: visible
             activeFocusOnPress: visible
-            anchors.top: parent.top
+            anchors.top: miniCalendarRule.bottom
+            anchors.topMargin: miniCalendar.visible ? Style.space(8) : 0
             anchors.left: parent.left
             anchors.right: parent.right
             height: visible ? Style.space(34) : 0
@@ -701,7 +826,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "unavailable"
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && !root.showingAvailability && root.agendaData.status === "unavailable"
             anchors.centerIn: parent
             width: parent.width - Style.space(24)
             text: "Chroncal is unavailable\nThe agenda will retry automatically."
@@ -713,7 +838,7 @@ Panel {
           }
 
           Text {
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.visibleEvents.length === 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && !root.showingAvailability && root.agendaData.status === "ok" && root.visibleEvents.length === 0
             anchors.centerIn: parent
             anchors.verticalCenterOffset: root.groups.length > 0 ? Style.space(24) : 0
             text: root.searchQuery !== "" ? "No matching events" : "Nothing else in the next " + Number(root.setting("lookaheadDays", 7)) + " days"
@@ -724,9 +849,9 @@ Panel {
 
           Flickable {
             id: agendaFlick
-            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && root.agendaData.status === "ok" && root.groups.length > 0
+            visible: !root.showingDetails && !root.showingSettings && !root.showingEditor && !root.showingHelp && !root.showingAvailability && root.agendaData.status === "ok" && root.groups.length > 0
             anchors.top: searchField.bottom
-            anchors.topMargin: searchField.visible ? Style.space(10) : 0
+            anchors.topMargin: searchField.visible || miniCalendar.visible ? Style.space(10) : 0
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
@@ -844,6 +969,8 @@ Panel {
             editingSeries: root.editingSeries
             calendars: root.calendars
             localTimezone: root.localTimezone
+            personalMeetingUrl: String(root.setting("personalMeetingUrl", ""))
+            prefill: root.editorPrefill
             busy: root.mutationBusy
             externalError: root.mutationError
             onCanceled: root.cancelEditor()
@@ -868,13 +995,15 @@ Panel {
             showDeclinedEvents: root.setting("showDeclinedEvents", "On")
             barHorizonHours: Number(root.setting("barHorizonHours", 0))
             joinReminderMinutes: Number(root.setting("joinReminderMinutes", -1))
+            showMiniCalendar: root.setting("showMiniCalendar", "Off")
+            personalMeetingUrl: String(root.setting("personalMeetingUrl", ""))
             onConfigurationChanged: function(values) { root.persistSettings(values) }
           }
 
           Rectangle {
             id: agendaToast
             z: 5
-            visible: root.actionStatus !== "" && !root.showingDetails && !root.showingEditor
+            visible: root.actionStatus !== "" && !root.showingDetails && !root.showingEditor && !root.showingAvailability
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             width: Math.min(parent.width, toastText.implicitWidth + Style.space(24))
@@ -895,6 +1024,24 @@ Panel {
               font.pixelSize: Style.font.caption
               elide: Text.ElideRight
             }
+          }
+
+          AvailabilityView {
+            visible: root.showingAvailability
+            anchors.fill: parent
+            bar: root.bar
+            days: root.availabilityDays
+            timezone: root.localTimezone
+            nowIso: root.nowMinute
+            availabilityDays: Number(root.setting("availabilityDays", 3))
+            startHour: Number(root.setting("availabilityStartHour", 9))
+            endHour: Number(root.setting("availabilityEndHour", 18))
+            minMinutes: Number(root.setting("availabilityMinMinutes", 30))
+            weekends: root.setting("availabilityWeekends", "Off")
+            actionStatus: root.actionStatus
+            onCopyRequested: root.copyAvailability()
+            onSlotRequested: function(day, slot) { root.bookSlot(day, slot) }
+            onConfigurationChanged: function(values) { root.persistSettings(values) }
           }
 
           ShortcutHelp {

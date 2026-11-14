@@ -22,6 +22,8 @@ Flickable {
   property string showDeclinedEvents: "On"
   property int barHorizonHours: 0
   property int joinReminderMinutes: -1
+  property string showMiniCalendar: "Off"
+  property string personalMeetingUrl: ""
 
   signal configurationChanged(var values)
 
@@ -148,6 +150,16 @@ Flickable {
       font.letterSpacing: 1
     }
 
+    Toggle {
+      width: parent.width
+      label: "Mini calendar"
+      description: "Month grid above the agenda; also toggled with m"
+      checked: root.showMiniCalendar === "On"
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onClicked: root.configurationChanged({ showMiniCalendar: root.showMiniCalendar === "On" ? "Off" : "On" })
+    }
+
     NumberField {
       width: parent.width
       label: "Days ahead"
@@ -229,6 +241,43 @@ Flickable {
       foreground: root.foreground
       fontFamily: root.fontFamily
       onModified: function(value) { root.configurationChanged({ joinReminderMinutes: value }) }
+    }
+
+    Text {
+      topPadding: Style.space(6)
+      text: "VIDEO CALLS"
+      color: Util.alpha(root.foreground, 0.52)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      font.bold: true
+      font.letterSpacing: 1
+    }
+
+    Text {
+      width: parent.width
+      text: "Personal meeting link, offered as one click when creating events"
+      textFormat: Text.PlainText
+      color: Qt.darker(root.foreground, 1.4)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.WordWrap
+    }
+
+    TextField {
+      id: meetingLinkField
+      width: parent.width
+      text: root.personalMeetingUrl
+      placeholderText: "https://zoom.us/my/you"
+      foreground: root.foreground
+      font.family: root.fontFamily
+      inputMethodHints: Qt.ImhUrlCharactersOnly
+      selectByMouse: true
+      readonly property bool valid: Model.isVideoUrl(text)
+      color: valid ? root.foreground : Color.urgent
+      onEditingFinished: {
+        var next = text.trim()
+        if (valid && next !== root.personalMeetingUrl) root.configurationChanged({ personalMeetingUrl: next })
+      }
     }
 
     Text {

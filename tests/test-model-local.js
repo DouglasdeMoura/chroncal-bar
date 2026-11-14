@@ -136,4 +136,63 @@ assert.equal(model.attendeeCountsLabel(guests), "4 guests · 2 yes · 1 no · 1 
 assert.equal(model.organizerLabel(guests), "org@example.test");
 assert.equal(model.attendeeSummary(guests).split("\n")[0], "org@example.test · Organizer");
 
+// Video call: stored as one notes line, edited as its own field.
+const withVideo = { id: 14, uid: "v", title: "1:1", all_day: false, start_time: "2026-11-16T12:00:00Z", end_time: "2026-11-16T12:30:00Z", description: "Agenda\n\nVideo call: https://us02web.zoom.us/j/9" };
+const videoValues = model.eventEditorValues(withVideo);
+assert.equal(videoValues.description, "Agenda");
+assert.equal(videoValues.video, "https://us02web.zoom.us/j/9");
+assert.equal(model.eventConferenceUrl(withVideo), "https://us02web.zoom.us/j/9");
+assert.equal(model.eventJoinLabel(withVideo), "Join Zoom");
+assert.equal(model.cleanDescription(withVideo.description), "Agenda");
+// Unchanged fields send no --description; a new link replaces the line.
+assert.equal(plain(model.eventMutationArgs("edit", withVideo, videoValues, { localTimezone: "America/Sao_Paulo" })).indexOf("--description"), -1);
+const swapped = plain(model.eventMutationArgs("edit", withVideo, { ...videoValues, video: "https://meet.google.com/xyz-abcd-efg" }, { localTimezone: "America/Sao_Paulo" }));
+assert.equal(swapped[swapped.indexOf("--description") + 1], "Agenda\n\nVideo call: https://meet.google.com/xyz-abcd-efg");
+const cleared = plain(model.eventMutationArgs("edit", withVideo, { ...videoValues, video: "" }, { localTimezone: "America/Sao_Paulo" }));
+assert.equal(cleared[cleared.indexOf("--description") + 1], "Agenda");
+const created = plain(model.eventMutationArgs("create", null, { ...model.eventEditorValues(null, now), title: "Pair", video: "https://meet.jit.si/room" }));
+assert.equal(created[created.indexOf("--description") + 1], "Video call: https://meet.jit.si/room");
+assert.deepEqual(plain(model.validateEventForm({ ...videoValues, video: "zoom" })), ["Video call must be an https:// link"]);
+assert.equal(model.videoLinkLabel("https://us02web.zoom.us/my/doug"), "Add Zoom");
+assert.equal(model.videoLinkLabel("https://example.test/room"), "Add my link");
+
+// Mini calendar: dots on every day an event touches.
+const markers = model.eventDayMarkers([{ ...trip, calendar_color: "#ff0000" }, { ...mondayClass, calendar_color: "#00ff00" }]);
+assert.deepEqual(Object.keys(markers).sort(), ["2026-11-12", "2026-11-13", "2026-11-14", "2026-11-16"]);
+const weeks = model.miniCalendarWeeks(2026, 10, 0, "2026-11-13", "", markers, "2026-11-13", "2026-11-19");
+const flat = weeks.flat();
+assert.equal(weeks.length, 5);
+assert.deepEqual(plain(flat.find(day => day.key === "2026-11-16").colors), ["#00ff00"]);
+assert.equal(flat.find(day => day.key === "2026-11-12").past, true);
+assert.equal(flat.find(day => day.key === "2026-11-25").loaded, false);
+assert.equal(model.firstEventIndexOnOrAfterDay([holiday, mondayClass], "2026-11-16", now), 1);
+assert.equal(model.firstEventIndexOnOrAfterDay([holiday, mondayClass], "2026-11-17", now), -1);
+
+// Availability: free time in working hours, skipping weekends.
+const monday9 = { id: 20, title: "Standup", all_day: false, start_time: "2026-11-16T12:00:00Z", end_time: "2026-11-16T13:30:00Z" };
+const mondayFree = { ...monday9, id: 21, start_time: "2026-11-16T17:00:00Z", end_time: "2026-11-16T18:00:00Z", transp: "TRANSPARENT" };
+const mondayDeclined = { ...declined, start_time: "2026-11-16T18:00:00Z", end_time: "2026-11-16T19:00:00Z" };
+const mondayLate = { ...monday9, id: 22, start_time: "2026-11-16T19:40:00Z", end_time: "2026-11-16T20:00:00Z" };
+const slots = model.availabilitySlots([monday9, mondayFree, mondayDeclined, mondayLate, holiday], now, { days: 2, startHour: 9, endHour: 18, rangeTo: "2026-11-20" });
+assert.deepEqual(plain(slots.map(day => [day.key, day.slots.map(model.slotLabel)])), [
+  ["2026-11-16", ["10:30–16:40", "17:00–18:00"]],
+  ["2026-11-17", ["09:00–18:00"]]
+]);
+// Today starts at the next quarter hour; days past the loaded range are unknown.
+const friday = model.availabilitySlots([], "2026-11-13T17:05:00Z", { days: 5, startHour: 9, endHour: 18, rangeTo: "2026-11-16" });
+assert.deepEqual(plain(friday.map(day => [day.key, day.slots.map(model.slotLabel)])), [
+  ["2026-11-13", ["14:15–18:00"]],
+  ["2026-11-16", ["09:00–18:00"]]
+]);
+assert.equal(model.availabilitySlots([], now, { weekends: true, days: 1, rangeTo: "2026-11-30" })[0].key, "2026-11-14");
+// An opaque all-day event blocks the whole day.
+const ooo = { id: 23, title: "OOO", all_day: true, transp: "OPAQUE", start_time: "2026-11-16T00:00:00Z", end_time: "2026-11-17T00:00:00Z" };
+assert.equal(model.availabilitySlots([ooo], now, { days: 1, rangeTo: "2026-11-30" })[0].slots.length, 0);
+assert.equal(model.availabilityText(slots, "America/Sao_Paulo", now),
+  "My availability (America/Sao Paulo, GMT-3):\n• Mon, Nov 16: 10:30–16:40, 17:00–18:00\n• Tue, Nov 17: 09:00–18:00");
+assert.equal(model.availabilityText([{ detail: "x", slots: [] }], "", now), "");
+
+// A meeting that ends at midnight is a one-day event.
+assert.equal(model.formatEventDate({ all_day: false, start_time: "2026-11-14T02:00:00Z", end_time: "2026-11-14T03:00:00Z" }, now), "Today, November 13");
+assert.equal(model.formatEventDate({ all_day: false, start_time: "2026-11-14T02:00:00Z", end_time: "2026-11-14T03:30:00Z" }, now), "Today, November 13 – Tomorrow, November 14");
 console.log("local-timezone model tests: ok");

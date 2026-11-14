@@ -59,6 +59,24 @@ jq -e '
   and (.tooltip | contains("Personal"))
 ' <<<"$bar_output" >/dev/null
 
+# A timed meeting outranks the day's all-day event; declined invites vanish.
+mkdir -p "$TMP/fixtures-day"
+cp "$FIXTURES/calendars.json" "$TMP/fixtures-day/calendars.json"
+jq '. + [
+  {id: 30, uid: "plan", calendar_id: 1, title: "Planning", all_day: false,
+   start_time: "2026-08-16T10:00:00Z", end_time: "2026-08-16T11:00:00Z"},
+  {id: 31, uid: "skip", calendar_id: 1, title: "Skipped sync", all_day: false,
+   start_time: "2026-08-16T09:00:00Z", end_time: "2026-08-16T09:30:00Z",
+   attendees: [{email: "WORK@example.com", rsvp_status: "DECLINED"}]}
+]' "$FIXTURES/events.json" > "$TMP/fixtures-day/events.json"
+day_output=$(CHRONCAL_FAKE_FIXTURES="$TMP/fixtures-day" CHRONCAL_BAR_NOW=2026-08-16T08:00:00Z "$ROOT/scripts/chroncal-next-event")
+jq -e '
+  .class == "upcoming"
+  and (.text | contains("Planning"))
+  and (.tooltip | contains("Release day"))
+  and ((.tooltip | contains("Skipped")) | not)
+' <<<"$day_output" >/dev/null
+
 # A compromised calendar color cannot break out of the pango font attribute.
 mkdir -p "$TMP/fixtures-evil"
 cp "$FIXTURES/events.json" "$TMP/fixtures-evil/events.json"

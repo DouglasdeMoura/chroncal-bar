@@ -49,11 +49,38 @@ An [Omarchy Quattro](https://omarchy.org/) menu-bar calendar powered by [Chronca
 - Deletes this event, this and following, or all events in a recurring series from the panel confirm.
 - Replies Yes, Maybe, or No from a Going control on event details when the calendar owner is an invited attendee.
 
+### Mini calendar
+
+- Optional month grid above the agenda (`m` or the calendar icon), like Notion Calendar's mini month.
+- Dots in calendar colors mark days with events; today is filled and the selected event's day is highlighted.
+- Clicking a day jumps the agenda to that day's first event (or the next one, with a note when the day is empty).
+- Days past the loaded agenda are dimmed; raise Days ahead to see further.
+
+### Share availability
+
+- Lists free time inside your working hours over the next few working days (`a` or the clock icon), computed from every visible calendar.
+- Ignores declined, cancelled, and Free (transparent) events; an all-day event marked Busy blocks its day.
+- Copies a ready-to-paste summary with `Enter` or **Copy availability**:
+
+  ```text
+  My availability (America/Sao Paulo, GMT-3):
+  • Mon, Nov 16: 09:00–09:30, 10:30–13:00, 15:00–17:15
+  • Tue, Nov 17: 09:00–09:30, 10:30–12:30, 13:00–17:15
+  ```
+
+- Clicking a slot starts a new event there.
+- Working hours, number of days, shortest slot, and weekends are set right in the view.
+
+### Video calls
+
+- The editor has a Video call field. Paste any link, use your personal meeting link with one click, or open **New Meet** (meet.google.com/new) and paste the room it creates.
+- The link is saved as a `Video call: <url>` line in the notes, which survives Google sync and is visible to guests; the panel hides that line and shows a Join button instead.
+
 ### Meeting alerts
 
 - Optional notification a set number of minutes before each timed, non-declined meeting, with a Join action that opens the call. Off by default because Chroncal's own alarm service may already remind you.
 
-This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sensitive time changes, alarms, availability, sync configuration, account management, and advanced calendar operations remain in Chroncal.
+This is menu-bar parity, not a replacement for Chroncal's full TUI. Timezone-sensitive time changes, alarms, sync configuration, account management, and advanced calendar operations remain in Chroncal.
 
 ## Requirements
 
@@ -99,6 +126,8 @@ The second command is optional. It places the widget beside the tray in the righ
 | `Enter` / `Space` | Agenda | Open selected event |
 | `o` | Agenda | Join the selected meeting |
 | `/` | Agenda | Open search |
+| `m` | Agenda | Show or hide the mini calendar |
+| `a` | Agenda | Share availability; `Enter` copies it |
 | `c` | Agenda or details | Create event |
 | `e` | Agenda or details | Edit event or recurring series |
 | `x` or `Delete` | Agenda or details | Delete this event, this and following, or all events |
@@ -134,6 +163,9 @@ Open the agenda and press `C` or `,`, or click the settings cog in the header. A
 - Include or exclude events without a physical location or meeting link.
 - Include or exclude declined events in the agenda (they never show on the bar).
 - Meeting alerts with a Join action, and how many minutes before start they fire.
+- Mini calendar above the agenda.
+- Personal meeting link offered in the editor's Video call field.
+- Share availability working hours, days, shortest slot, and weekends (also editable in that view).
 - Show or hide the Open in Chroncal button on event details (off by default).
 
 Calendar selection has two states. Default mode selects every current calendar and automatically includes calendars added later. The first checkbox change stores an exact custom selection; selecting none hides every event. Use **Use default (all calendars)** to discard the custom selection and return to automatic default mode.
@@ -148,6 +180,10 @@ omarchy bar set douglasdemoura.chroncal-bar showOpenInChroncal On
 omarchy bar set douglasdemoura.chroncal-bar relativeLeadMinutes 10
 omarchy bar set douglasdemoura.chroncal-bar barHorizonHours 12
 omarchy bar set douglasdemoura.chroncal-bar joinReminderMinutes 1   # -1 turns alerts off
+omarchy bar set douglasdemoura.chroncal-bar showMiniCalendar On
+omarchy bar set douglasdemoura.chroncal-bar personalMeetingUrl https://zoom.us/my/you
+omarchy bar set douglasdemoura.chroncal-bar availabilityStartHour 9
+omarchy bar set douglasdemoura.chroncal-bar availabilityEndHour 18
 ```
 
 Force a refresh:
