@@ -1745,3 +1745,36 @@ function availabilityText(days, timezone, nowValue) {
   });
   return lines.join("\n");
 }
+
+// WCAG relative luminance of a color (#rgb, #rrggbb, #aarrggbb or a QML color).
+function relativeLuminance(value) {
+  var match = htmlColor(value).match(/^#([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/);
+  if (!match) return NaN;
+  function linear(part) {
+    var c = parseInt(part, 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  }
+  return 0.2126 * linear(match[1]) + 0.7152 * linear(match[2]) + 0.0722 * linear(match[3]);
+}
+
+function contrastRatio(a, b) {
+  var la = relativeLuminance(a);
+  var lb = relativeLuminance(b);
+  if (!isFinite(la) || !isFinite(lb)) return 1;
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+// The candidate that reads best on `background`. Theme colors come first so
+// the label stays on-palette; plain black and white step in when neither
+// theme color clears 4.5:1 (a mid-tone calendar color on a mid-tone theme).
+function readableTextColor(background, candidates) {
+  var list = (candidates || []).map(htmlColor).filter(function(color) { return !!color; });
+  var best = "";
+  var bestRatio = 0;
+  list.forEach(function(color) {
+    var ratio = contrastRatio(background, color);
+    if (ratio > bestRatio) { best = color; bestRatio = ratio; }
+  });
+  if (bestRatio >= 4.5) return best;
+  return contrastRatio(background, "#000000") >= contrastRatio(background, "#ffffff") ? "#000000" : "#ffffff";
+}

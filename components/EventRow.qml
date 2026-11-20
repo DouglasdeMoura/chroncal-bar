@@ -105,20 +105,20 @@ Item {
       font.pixelSize: Style.font.caption
     }
 
-    Button {
+    JoinButton {
       visible: root.showJoin
       anchors.verticalCenter: parent.verticalCenter
       text: root.ongoing ? "Join" : root.status
       tooltipText: Model.eventJoinLabel(root.eventData)
-      bordered: true
+      tint: root.calendarColor
+      filled: root.ongoing
       enabled: !root.busy
       opacity: enabled ? 1 : 0.55
-      foreground: root.ongoing ? Color.background : root.foreground
-      background: root.ongoing ? root.calendarColor : "transparent"
+      foreground: root.foreground
       fontFamily: root.fontFamily
       fontSize: Style.font.caption
       horizontalPadding: Style.space(8)
-      verticalPadding: Style.space(2)
+      verticalPadding: Style.space(3)
       onClicked: root.joinRequested(root.eventData)
     }
   }

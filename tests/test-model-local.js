@@ -211,3 +211,14 @@ assert.equal(model.eventNotesHtml({ description: '<a href="https://x.test/?a=1">
 // Plain-text notes are untouched, including stray angle brackets.
 assert.equal(model.cleanDescription("a < b and c > d"), "a < b and c > d");
 console.log("local-timezone model tests: ok");
+
+// Join pill ink: pick the theme color that reads on the calendar color.
+assert.ok(Math.abs(model.contrastRatio("#000000", "#ffffff") - 21) < 1e-9);
+assert.equal(model.contrastRatio("#644ac9", "#644ac9"), 1);
+assert.equal(model.readableTextColor("#f6c026", ["#1a1b26", "#c0caf5"]), "#1a1b26");
+assert.equal(model.readableTextColor("#3f51b5", ["#1a1b26", "#c0caf5"]), "#ffffff");
+assert.equal(model.readableTextColor("#0b8043", ["#ffffff", "#111111"]), "#ffffff");
+assert.equal(model.readableTextColor("#ff7b8b8a", ["#1a1b26"]), "#1a1b26");
+assert.equal(model.readableTextColor("#808080", ["#5a5a5a"]), "#000000");
+assert.ok(!isFinite(model.relativeLuminance("nope")));
+console.log("join contrast ok");

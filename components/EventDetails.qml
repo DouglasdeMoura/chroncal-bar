@@ -36,6 +36,7 @@ Item {
   readonly property string eventDateLabel: Model.formatEventDate(eventData, nowIso)
   readonly property color notesLinkColor: Color.accent
   readonly property string openUrl: Model.eventOpenUrl(eventData)
+  readonly property string conferenceUrl: Model.eventConferenceUrl(eventData)
   readonly property string joinLabel: Model.eventJoinLabel(eventData)
   readonly property string rowStatus: Model.eventRowStatus(eventData, nowIso)
 
@@ -355,22 +356,24 @@ Item {
       width: parent.width
       height: Math.max(joinButton.height, actionIcons.height)
 
-      Button {
+      JoinButton {
         id: joinButton
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         visible: root.openUrl !== ""
         text: root.joinLabel
+        iconText: root.conferenceUrl !== "" ? "󰕧" : "󰌹"
         tooltipText: root.openUrl
-        bordered: true
+        tint: root.eventData.calendar_color || "#888888"
+        filled: root.conferenceUrl !== ""
         focusable: true
         enabled: visible && !root.busy
         opacity: enabled ? 1 : 0.55
         foreground: root.foreground
         fontFamily: root.fontFamily
         fontSize: Style.font.bodySmall
-        horizontalPadding: Style.space(8)
-        verticalPadding: Style.space(3)
+        horizontalPadding: Style.space(10)
+        verticalPadding: Style.space(4)
         onClicked: root.joinRequested()
       }
 
